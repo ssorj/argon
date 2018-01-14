@@ -82,7 +82,7 @@ class _AmqpBoolean(_AmqpDataType):
         if format_code == 0x42: return offset, False
 
         if format_code == 0x56:
-            (value,) = _struct.unpack_from("!B", buff, offset + 1)
+            (value,) = _struct.unpack_from("!B", buff, offset)
             offset += 1
 
             if value == 0x00: return offset, False
@@ -279,7 +279,7 @@ class _AmqpCompoundType(_AmqpDataType):
         start = offset
         end = start + size
 
-        buff[start:end] = bytes(inner_buff[:inner_offset]) # XXX try without bytes
+        buff[start:end] = inner_buff[:inner_offset]
 
         return end
 
@@ -379,7 +379,7 @@ class _AmqpArray(_AmqpDataType):
         start = offset
         end = start + size
 
-        buff[start:end] = bytes(inner_buff[:inner_offset]) # XXX Try without bytes
+        buff[start:end] = inner_buff[:inner_offset]
 
     def parse(self, buff, offset, format_code):
         assert format_code in self.format_codes
