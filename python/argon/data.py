@@ -4,7 +4,7 @@ except ImportError:
     import ustruct as _struct
 
 _data_types_by_format_code = dict()
-    
+
 class _AmqpDataType:
     def __init__(self, name, format_codes):
         self.name = name
@@ -19,15 +19,11 @@ class _AmqpNull(_AmqpDataType):
 
     def emit(self, buff, offset, value):
         _struct.pack_into("!B", buff, offset, 0x40)
-
         return offset + 1
 
-    def parse(self, buff, offset):
-        (format_code,) = _struct.unpack_from("!B", buff, offset)
-
-        assert format_code == 0x40
-
-        return offset + 1, None
+    def parse(self, buff, offset, format_code):
+        assert format_code in self.format_codes
+        return offset, None
 
 class _AmqpBoolean(_AmqpDataType):
     def __init__(self):
@@ -43,19 +39,19 @@ class _AmqpBoolean(_AmqpDataType):
 
         return offset + 1
 
-    def parse(self, buff, offset):
-        (format_code,) = _struct.unpack_from("!B", buff, offset)
+    def parse(self, buff, offset, format_code):
+        assert format_code in self.format_codes
 
         if format_code == 0x56:
             (value,) = _struct.unback_from("!B", buff, offset + 1)
 
-            if value == 0x00: return offset + 2, False
-            if value == 0x01: return offset + 2, True
+            if value == 0x00: return offset + 1, False
+            if value == 0x01: return offset + 1, True
 
             raise Exception()
 
-        if format_code == 0x41: return offset + 1, True
-        if format_code == 0x42: return offset + 1, False
+        if format_code == 0x41: return offset, True
+        if format_code == 0x42: return offset, False
 
         raise Exception()
 
@@ -64,8 +60,12 @@ class _AmqpFixedWidthType(_AmqpDataType):
         super().__init__(name, format_codes)
 
         self.format_code = format_codes[0]
-        self.format_string = "!B" + format_spec
-        self.width = _struct.calcsize(self.format_string)
+
+        self.emit_format_string = "!B" + format_spec
+        self.emit_format_width = _struct.calcsize(self.emit_format_string)
+
+        self.parse_format_string = "!" + format_spec
+        self.parse_format_width = _struct.calcsize(self.parse_format_string)
 
     def marshal(self, obj):
         return obj
@@ -74,24 +74,23 @@ class _AmqpFixedWidthType(_AmqpDataType):
         return value
 
     def emit(self, buff, offset, obj):
-        assert offset + self.width < len(buff)
+        assert offset + self.emit_format_width < len(buff)
 
         value = self.marshal(obj)
 
-        _struct.pack_into(self.format_string, buff, offset, self.format_code, value)
+        _struct.pack_into(self.emit_format_string, buff, offset, self.format_code, value)
 
-        return offset + self.width
+        return offset + self.emit_format_width
 
-    def parse(self, buff, offset):
-        assert offset + self.width < len(buff)
+    def parse(self, buff, offset, format_code):
+        assert offset + self.parse_format_width < len(buff)
+        assert format_code in self.format_codes
 
-        format_code, value = _struct.unpack_from(self.format_string, buff, offset)
-
-        assert format_code == self.format_code
+        (value,) = _struct.unpack_from(self.parse_format_string, buff, offset)
 
         obj = self.unmarshal(value)
 
-        return offset + self.width, obj
+        return offset + self.parse_format_width, obj
 
 class _AmqpChar(_AmqpFixedWidthType):
     def __init__(self):
@@ -138,15 +137,15 @@ class _AmqpVariableWidthType(_AmqpDataType):
 
         return end
 
-    def parse(self, buff, offset):
-        (format_code,) = _struct.unpack_from("!B", buff, offset)
+    def parse(self, buff, offset, format_code):
+        assert format_code in self.format_codes, format_code
 
         if format_code == self.short_format_code:
-            (size,) = _struct.unpack_from("!B", buff, offset + 1)
-            start = offset + 2
+            (size,) = _struct.unpack_from("!B", buff, offset)
+            start = offset + 1
         elif format_code == self.long_format_code:
-            (size,) = _struct.unpack_from("!I", buff, offset + 1)
-            start = offset + 5
+            (size,) = _struct.unpack_from("!I", buff, offset)
+            start = offset + 4
         else:
             raise Exception()
 
@@ -190,20 +189,20 @@ class _AmqpCompoundType(_AmqpDataType):
 
 class _AmqpList(_AmqpCompoundType):
     def __init__(self, short_format_code, long_format_code):
-        super().__init__("list")
+        super().__init__("list", (short_format_code, long_format_code))
 
         self.short_format_code = short_format_code
         self.long_format_code = long_format_code
 
-    def parse(self, buff, offset):
-        (format_code,) = _struct.unpack_from("!B", buff, offset)
+    def parse(self, buff, offset, format_code):
+        assert format_code in self.format_codes
 
         if format_code == self.short_format_code:
             size, count = _struct.unpack_from("!BB", buff, offset + 1)
-            start = offset + 3
+            start = offset + 2
         elif format_code == self.long_format_code:
             size, count = _struct.unpack_from("!II", buff, offset + 1)
-            start = offset + 9
+            start = offset + 8
         else:
             raise Exception()
 
@@ -212,7 +211,7 @@ class _AmqpList(_AmqpCompoundType):
         values = list()
 
         while inner_offset < end:
-            inner_offset, value = parse_amqp_data(buff, inner_offset)
+            inner_offset, value = parse_data(buff, inner_offset)
             values.append(value)
 
         assert inner_offset == end
@@ -245,15 +244,17 @@ amqp_binary = _AmqpBinary()
 amqp_string = _AmqpString()
 amqp_symbol = _AmqpSymbol()
 
-def parse_amqp_data(buff, offset):
-    format_code = _struct.unpack_from("!B", buff, offset)
+def parse_data(buff, offset):
+    (format_code,) = _struct.unpack_from("!B", buff, offset)
 
     try:
         data_type = _data_types_by_format_code[format_code]
     except KeyError:
-        raise Exception("I don't know about format code {}", format_code)
+        raise Exception("Unknown format code {:02X}".format(format_code))
 
-    offset, value = data_type.parse(buff, offset)
+    offset, value = data_type.parse(buff, offset + 1, format_code)
+
+    return offset, value
 
 def _hex(buff):
     try:
@@ -353,7 +354,7 @@ def _main():
     output_values = list()
 
     for type_, input_value in data:
-        offset, value = type_.parse(buff, offset)
+        offset, value = parse_data(buff, offset)
 
         assert value == input_value, "Expected {} but got {}".format(input_value, value)
 
