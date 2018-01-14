@@ -21,6 +21,12 @@ class _AmqpDataType:
     def __repr__(self):
         return self.name
 
+    def marshal(self, obj):
+        return obj
+
+    def unmarshal(self, value):
+        return value
+
 class _AmqpNull(_AmqpDataType):
     def __init__(self):
         super().__init__("null", (type(None),), (0x40,))
@@ -28,9 +34,14 @@ class _AmqpNull(_AmqpDataType):
     def emit(self, buff, offset, value):
         assert type(value) in self.python_types
         
+        return self.emit_constructor(buff, offset, value)
+ 
+    def emit_constructor(self, buff, offset, value):
         _struct.pack_into("!B", buff, offset, 0x40)
-
         return offset + 1
+
+    def emit_value(self, buff, offset, value):
+        return offset
 
     def parse(self, buff, offset, format_code):
         assert format_code in self.format_codes
@@ -41,8 +52,6 @@ class _AmqpBoolean(_AmqpDataType):
         super().__init__("boolean", (bool,), (0x41, 0x42, 0x56))
 
     def emit(self, buff, offset, value):
-        assert isinstance(value, self.python_types)
-        
         if value is True:
             _struct.pack_into("!B", buff, offset, 0x41)
         elif value is False:
@@ -52,19 +61,33 @@ class _AmqpBoolean(_AmqpDataType):
 
         return offset + 1
 
+    def emit_constructor(self, buff, offset, value):
+        _struct.pack_into("!B", buff, offset, 0x56)
+        return offset + 1
+
+    def emit_value(self, buff, offset, value):
+        if value is True:
+            _struct.pack_into("!B", buff, offset, 0x01)
+        elif value is False:
+            _struct.pack_into("!B", buff, offset, 0x00)
+        else:
+            raise Exception()
+
+        return offset + 1
+
     def parse(self, buff, offset, format_code):
         assert format_code in self.format_codes
 
+        if format_code == 0x41: return offset, True
+        if format_code == 0x42: return offset, False
+
         if format_code == 0x56:
-            (value,) = _struct.unback_from("!B", buff, offset + 1)
+            (value,) = _struct.unpack_from("!B", buff, offset + 1)
 
             if value == 0x00: return offset + 1, False
             if value == 0x01: return offset + 1, True
 
             raise Exception()
-
-        if format_code == 0x41: return offset, True
-        if format_code == 0x42: return offset, False
 
         raise Exception()
 
@@ -73,39 +96,37 @@ class _AmqpFixedWidthType(_AmqpDataType):
         super().__init__(name, python_types, format_codes)
 
         self.format_code = format_codes[0]
-
-        self.emit_format_string = "!B" + format_spec
-        self.emit_format_width = _struct.calcsize(self.emit_format_string)
-
-        self.parse_format_string = "!" + format_spec
-        self.parse_format_width = _struct.calcsize(self.parse_format_string)
-
-    def marshal(self, obj):
-        return obj
-
-    def unmarshal(self, value):
-        return value
+        self.format_string = "!" + format_spec
+        self.format_width = _struct.calcsize(self.format_string)
 
     def emit(self, buff, offset, obj):
-        assert offset + self.emit_format_width < len(buff)
-        # XXX Trouble is that python_types is used for lookup and for this assertion
-        #assert isinstance(obj, self.python_types)
+        assert offset + self.format_width < len(buff)
+        #assert isinstance(obj, self.python_types) XXX
 
         value = self.marshal(obj)
 
-        _struct.pack_into(self.emit_format_string, buff, offset, self.format_code, value)
+        offset = self.emit_constructor(buff, offset, value)
+        offset = self.emit_value(buff, offset, value)
 
-        return offset + self.emit_format_width
+        return offset
+
+    def emit_constructor(self, buff, offset, value):
+        _struct.pack_into("!B", buff, offset, self.format_code)
+        return offset + 1
+
+    def emit_value(self, buff, offset, value):
+        _struct.pack_into(self.format_string, buff, offset, value)
+        return offset + self.format_width
 
     def parse(self, buff, offset, format_code):
-        assert offset + self.parse_format_width < len(buff)
+        assert offset + self.format_width < len(buff)
         assert format_code in self.format_codes
 
-        (value,) = _struct.unpack_from(self.parse_format_string, buff, offset)
+        (value,) = _struct.unpack_from(self.format_string, buff, offset)
 
         obj = self.unmarshal(value)
 
-        return offset + self.parse_format_width, obj
+        return offset + self.format_width, obj
 
 class _AmqpChar(_AmqpFixedWidthType):
     def __init__(self):
@@ -135,8 +156,7 @@ class _AmqpVariableWidthType(_AmqpDataType):
         self.long_format_code = long_format_code
 
     def emit(self, buff, offset, obj):
-        # XXX
-        #assert isinstance(obj, self.python_types)
+        #assert isinstance(obj, self.python_types) XXX
         
         bytes_ = self.marshal(obj)
         size = len(bytes_)
