@@ -1,27 +1,37 @@
-import struct as _struct
+try:
+    import struct as _struct
+except ImportError:
+    import ustruct as _struct
 
+_data_types_by_format_code = dict()
+    
 class _AmqpDataType:
-    def __init__(self, format_code):
-        self.format_code = format_code
+    def __init__(self, name, format_codes):
+        self.name = name
+        self.format_codes = format_codes
+
+        for code in self.format_codes:
+            _data_types_by_format_code[code] = self
 
 class _AmqpNull(_AmqpDataType):
     def __init__(self):
-        super().__init__(0x40)
+        super().__init__("null", (0x40,))
 
-    def emit(self, buff, offset):
-        _struct.pack_into("!B", buff, offset, self.format_code)
+    def emit(self, buff, offset, value):
+        _struct.pack_into("!B", buff, offset, 0x40)
+
         return offset + 1
 
     def parse(self, buff, offset):
-        values = _struct.unpack_from("!B", buff, offset)
+        (format_code,) = _struct.unpack_from("!B", buff, offset)
 
-        assert values[0] == 0x40
+        assert format_code == 0x40
 
         return offset + 1, None
 
 class _AmqpBoolean(_AmqpDataType):
     def __init__(self):
-        super().__init__(0x56)
+        super().__init__("boolean", (0x41, 0x42, 0x56))
 
     def emit(self, buff, offset, value):
         if value is True:
@@ -34,127 +44,332 @@ class _AmqpBoolean(_AmqpDataType):
         return offset + 1
 
     def parse(self, buff, offset):
-        values = _struct.unpack_from("!B", buff, offset)
+        (format_code,) = _struct.unpack_from("!B", buff, offset)
 
-        if values[0] == 0x41:
-            return offset + 1, True
-        elif values[0] == 0x42:
-            return offset + 1, False
-        elif values[0] == 0x56:
-            raise NotImplementedError()
+        if format_code == 0x56:
+            (value,) = _struct.unback_from("!B", buff, offset + 1)
+
+            if value == 0x00: return offset + 2, False
+            if value == 0x01: return offset + 2, True
+
+            raise Exception()
+
+        if format_code == 0x41: return offset + 1, True
+        if format_code == 0x42: return offset + 1, False
+
+        raise Exception()
+
+class _AmqpFixedWidthType(_AmqpDataType):
+    def __init__(self, name, format_codes, format_spec):
+        super().__init__(name, format_codes)
+
+        self.format_code = format_codes[0]
+        self.format_string = "!B" + format_spec
+        self.width = _struct.calcsize(self.format_string)
+
+    def marshal(self, obj):
+        return obj
+
+    def unmarshal(self, value):
+        return value
+
+    def emit(self, buff, offset, obj):
+        assert offset + self.width < len(buff)
+
+        value = self.marshal(obj)
+
+        _struct.pack_into(self.format_string, buff, offset, self.format_code, value)
+
+        return offset + self.width
+
+    def parse(self, buff, offset):
+        assert offset + self.width < len(buff)
+
+        format_code, value = _struct.unpack_from(self.format_string, buff, offset)
+
+        assert format_code == self.format_code
+
+        obj = self.unmarshal(value)
+
+        return offset + self.width, obj
+
+class _AmqpChar(_AmqpFixedWidthType):
+    def __init__(self):
+        super().__init__("char", (0x73,), "4s")
+
+    def marshal(self, char):
+        return char.encode("utf-32-be")
+
+    def unmarshal(self, bytes_):
+        return bytes_.decode("utf-32-be")
+
+class _AmqpTimestamp(_AmqpFixedWidthType):
+    def __init__(self):
+        super().__init__("timestamp", (0x83,), "q")
+
+    def marshal(self, time_):
+        return int(round(time_ * 1000, 3))
+
+    def unmarshal(self, value):
+        return round(value / 1000, 3)
+
+class _AmqpVariableWidthType(_AmqpDataType):
+    def __init__(self, name, short_format_code, long_format_code):
+        super().__init__(name, (short_format_code, long_format_code))
+
+        self.short_format_code = short_format_code
+        self.long_format_code = long_format_code
+
+    def emit(self, buff, offset, obj):
+        bytes_ = self.marshal(obj)
+        size = len(bytes_)
+
+        if size < 256:
+            _struct.pack_into("!BB", buff, offset, self.short_format_code, size)
+            start = offset + 2
+        else:
+            assert size < 0xffffffff
+
+            _struct.pack_into("!BI", buff, offset, self.long_format_code, size)
+            start = offset + 5
+
+        end = start + size
+        buff[start:end] = bytes_
+
+        return end
+
+    def parse(self, buff, offset):
+        (format_code,) = _struct.unpack_from("!B", buff, offset)
+
+        if format_code == self.short_format_code:
+            (size,) = _struct.unpack_from("!B", buff, offset + 1)
+            start = offset + 2
+        elif format_code == self.long_format_code:
+            (size,) = _struct.unpack_from("!I", buff, offset + 1)
+            start = offset + 5
         else:
             raise Exception()
 
-class _AmqpFixedSizeType(_AmqpDataType):
-    def __init__(self, format_code, format_spec):
-        super().__init__(format_code)
+        end = start + size
+        string = self.unmarshal(bytes(buff[start:end]))
 
-        self.format_struct = _struct.Struct("!B" + format_spec)
+        return end, string
 
-    def emit(self, buff, offset, value):
-        assert offset + self.format_struct.size < len(buff)
+class _AmqpBinary(_AmqpVariableWidthType):
+    def __init__(self):
+        super().__init__("binary", 0xa0, 0xb0)
 
-        self.format_struct.pack_into(buff, offset, self.format_code, value)
+    def marshal(self, bytes_):
+        return bytes_
 
-        return offset + self.format_struct.size
+    def unmarshal(self, bytes_):
+        return bytes_
+
+class _AmqpString(_AmqpVariableWidthType):
+    def __init__(self):
+        super().__init__("string", 0xa1, 0xb1)
+
+    def marshal(self, string):
+        return string.encode("utf-8")
+
+    def unmarshal(self, bytes_):
+        return bytes_.decode("utf-8")
+
+class _AmqpSymbol(_AmqpVariableWidthType):
+    def __init__(self):
+        super().__init__("string", 0xa3, 0xb3)
+
+    def marshal(self, string):
+        return string.encode("ascii")
+
+    def unmarshal(self, bytes_):
+        return bytes_.decode("ascii")
+
+class _AmqpCompoundType(_AmqpDataType):
+    pass
+
+class _AmqpList(_AmqpCompoundType):
+    def __init__(self, short_format_code, long_format_code):
+        super().__init__("list")
+
+        self.short_format_code = short_format_code
+        self.long_format_code = long_format_code
 
     def parse(self, buff, offset):
-        assert offset + self.format_struct.size < len(buff)
+        (format_code,) = _struct.unpack_from("!B", buff, offset)
 
-        values = self.format_struct.unpack_from(buff, offset)
+        if format_code == self.short_format_code:
+            size, count = _struct.unpack_from("!BB", buff, offset + 1)
+            start = offset + 3
+        elif format_code == self.long_format_code:
+            size, count = _struct.unpack_from("!II", buff, offset + 1)
+            start = offset + 9
+        else:
+            raise Exception()
 
-        assert values[0] == self.format_code
+        inner_offset = start
+        end = start + size
+        values = list()
 
-        return offset + self.format_struct.size, values[1]
+        while inner_offset < end:
+            inner_offset, value = parse_amqp_data(buff, inner_offset)
+            values.append(value)
+
+        assert inner_offset == end
+
+        return end, values
 
 amqp_null = _AmqpNull()
 amqp_boolean = _AmqpBoolean()
 
-amqp_ubyte = _AmqpFixedSizeType(0x50, "B")
-amqp_ushort = _AmqpFixedSizeType(0x60, "H")
-amqp_uint = _AmqpFixedSizeType(0x70, "I")
-amqp_ulong = _AmqpFixedSizeType(0x80, "Q")
+amqp_ubyte = _AmqpFixedWidthType("ubyte", (0x50,), "B")
+amqp_ushort = _AmqpFixedWidthType("ushort", (0x60,), "H")
+amqp_uint = _AmqpFixedWidthType("uint", (0x70,), "I")
+amqp_ulong = _AmqpFixedWidthType("ulong", (0x80,), "Q")
 
-amqp_byte = _AmqpFixedSizeType(0x51, "b")
-amqp_short = _AmqpFixedSizeType(0x61, "h")
-amqp_int = _AmqpFixedSizeType(0x71, "i")
-amqp_long = _AmqpFixedSizeType(0x81, "q")
+amqp_byte = _AmqpFixedWidthType("byte", (0x51,), "b")
+amqp_short = _AmqpFixedWidthType("short", (0x61,), "h")
+amqp_int = _AmqpFixedWidthType("int", (0x71,), "i")
+amqp_long = _AmqpFixedWidthType("long", (0x81,), "q")
+
+amqp_float =_AmqpFixedWidthType("float", (0x72,), "f")
+amqp_double = _AmqpFixedWidthType("double", (0x82,), "d")
+
+# XXX Disabled due to apparent limitations in micropython
+amqp_char = _AmqpChar()
+
+amqp_timestamp = _AmqpTimestamp()
+amqp_uuid = _AmqpFixedWidthType("uuid", (0x98,), "16s")
+
+amqp_binary = _AmqpBinary()
+amqp_string = _AmqpString()
+amqp_symbol = _AmqpSymbol()
+
+def parse_amqp_data(buff, offset):
+    format_code = _struct.unpack_from("!B", buff, offset)
+
+    try:
+        data_type = _data_types_by_format_code[format_code]
+    except KeyError:
+        raise Exception("I don't know about format code {}", format_code)
+
+    offset, value = data_type.parse(buff, offset)
 
 def _hex(buff):
-    import binascii
+    try:
+        import binascii
+    except ImportError:
+        import ubinascii as binascii
+
     return binascii.hexlify(buff)
 
+# XXX This is not yet working as expected
+def _uuid_bytes():
+    try:
+        import utime as time
+    except ImportError:
+        import time
+
+    try:
+        import urandom as random
+    except ImportError:
+        import random
+
+    random.seed(round(time.time() * 1000))
+
+    values = (
+        random.getrandbits(32),
+        random.getrandbits(32),
+        random.getrandbits(32),
+        random.getrandbits(32),
+    )
+
+    return _struct.pack("IIII", *values)
+
 def _main():
-    buff = bytearray(100)
+    try:
+        import utime as time
+    except ImportError:
+        import time
 
-    offset = amqp_null.emit(buff, 0)
-    offset = amqp_boolean.emit(buff, offset, True)
-    offset = amqp_boolean.emit(buff, offset, False)
-    
-    offset = amqp_ubyte.emit(buff, offset, 0)
-    offset = amqp_ubyte.emit(buff, offset, 0xff)
-    offset = amqp_ushort.emit(buff, offset, 0)
-    offset = amqp_ushort.emit(buff, offset, 0xffff)
-    offset = amqp_uint.emit(buff, offset, 0)
-    offset = amqp_uint.emit(buff, offset, 0xffffffff)
-    offset = amqp_ulong.emit(buff, offset, 0)
-    offset = amqp_ulong.emit(buff, offset, 0xffffffffffffffff)
-    
-    offset = amqp_byte.emit(buff, offset, 127)
-    offset = amqp_byte.emit(buff, offset, -128)
-    offset = amqp_short.emit(buff, offset, -32768)
-    offset = amqp_short.emit(buff, offset, 32767)
-    offset = amqp_int.emit(buff, offset, -2147483648)
-    offset = amqp_int.emit(buff, offset, 2147483647)
-    offset = amqp_long.emit(buff, offset, -9223372036854775808)
-    offset = amqp_long.emit(buff, offset, 9223372036854775807)
+    try:
+        import urandom as random
+    except ImportError:
+        import random
 
-    print(_hex(buff))
+    data = [
+        (amqp_null, None),
+        (amqp_boolean, True),
+        (amqp_boolean, False),
 
-    values = list()
+        (amqp_ubyte, 0),
+        (amqp_ubyte, 0xff),
+        (amqp_ushort, 0),
+        (amqp_ushort, 0xffff),
+        (amqp_uint, 0),
+        (amqp_uint, 0xffffffff),
+        (amqp_ulong, 0),
+        (amqp_ulong, 0xffffffffffffffff),
 
-    offset, value = amqp_null.parse(buff, 0)
-    values.append(value)
-    offset, value = amqp_boolean.parse(buff, offset)
-    values.append(value)
-    offset, value = amqp_boolean.parse(buff, offset)
-    values.append(value)
-    
-    offset, value = amqp_ubyte.parse(buff, offset)
-    values.append(value)
-    offset, value = amqp_ubyte.parse(buff, offset)
-    values.append(value)
-    offset, value = amqp_ushort.parse(buff, offset)
-    values.append(value)
-    offset, value = amqp_ushort.parse(buff, offset)
-    values.append(value)
-    offset, value = amqp_uint.parse(buff, offset)
-    values.append(value)
-    offset, value = amqp_uint.parse(buff, offset)
-    values.append(value)
-    offset, value = amqp_ulong.parse(buff, offset)
-    values.append(value)
-    offset, value = amqp_ulong.parse(buff, offset)
-    values.append(value)
-    
-    offset, value = amqp_byte.parse(buff, offset)
-    values.append(value)
-    offset, value = amqp_byte.parse(buff, offset)
-    values.append(value)
-    offset, value = amqp_short.parse(buff, offset)
-    values.append(value)
-    offset, value = amqp_short.parse(buff, offset)
-    values.append(value)
-    offset, value = amqp_int.parse(buff, offset)
-    values.append(value)
-    offset, value = amqp_int.parse(buff, offset)
-    values.append(value)
-    offset, value = amqp_long.parse(buff, offset)
-    values.append(value)
-    offset, value = amqp_long.parse(buff, offset)
-    values.append(value)
+        (amqp_byte, 127),
+        (amqp_byte, -128),
+        (amqp_short, -32768),
+        (amqp_short, 32767),
+        (amqp_int, -2147483648),
+        (amqp_int, 2147483647),
+        (amqp_long, -9223372036854775808),
+        (amqp_long, 9223372036854775807),
 
-    print(values)
+        (amqp_float, 1.0),
+        (amqp_float, -1.0),
+        (amqp_double, 1.0),
+        (amqp_double, -1.0),
+
+        # XXX Fails to decode to a single char on micropython
+        # (amqp_char, "a"),
+
+        (amqp_timestamp, round(time.time(), 3)),
+        (amqp_uuid, _uuid_bytes()),
+
+        (amqp_binary, b"123"),
+        (amqp_binary, b"x" * 256),
+        (amqp_string, "Hello, \U0001F34B!"),
+        (amqp_string, "\U0001F34B" * 256),
+        (amqp_symbol, "Hello!"),
+        (amqp_symbol, "x" * 256),
+    ]
+
+    buff = bytearray(10000)
+    offset = 0
+    output_hexes = list()
+
+    for type_, input_value in data:
+        start_offset = offset
+        offset = type_.emit(buff, offset, input_value)
+
+        output_hexes.append(_hex(buff[start_offset:offset]))
+
+    offset = 0
+    output_values = list()
+
+    for type_, input_value in data:
+        offset, value = type_.parse(buff, offset)
+
+        assert value == input_value, "Expected {} but got {}".format(input_value, value)
+
+        output_values.append(value)
+
+    row = "{:5} {:10} {:>22} {:>22} {}"
+
+    for i, item in enumerate(data):
+        type_, input_value = item
+        output_value = output_values[i]
+        output_hex = output_hexes[i]
+
+        print(row.format(i, type_.name, str(input_value), str(output_value), output_hex))
 
 if __name__ == "__main__":
-    _main()
+    try:
+        _main()
+    except KeyboardInterrupt:
+        pass

@@ -1,7 +1,14 @@
 export PYTHONPATH := python
 
 .PHONY: test
-test:
+test: test-micropython
+
+.PHONY: test-micropython
+test-micropython:
+	micropython python/argon/datatypes.py
+
+.PHONY: test-cpython
+test-cpython:
 	python3 -m argon.datatypes
 
 .PHONY: clean
