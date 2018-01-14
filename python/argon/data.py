@@ -340,7 +340,6 @@ class _AmqpMap(_AmqpCompoundType):
 
         return obj
 
-
 class _AmqpArray(_AmqpDataType):
     def __init__(self):
         super().__init__("array", (), (0xe0, 0xf0))
@@ -363,7 +362,7 @@ class _AmqpArray(_AmqpDataType):
             inner_offset = data_type.emit_value(inner_buff, inner_offset, value)
 
         size = inner_offset
-        count = len(values)
+        count = len(objs)
 
         if size < 256 and count < 256:
             _struct.pack_into("!BBB", buff, offset, 0xe0, size, count)
@@ -380,8 +379,21 @@ class _AmqpArray(_AmqpDataType):
         start = offset
         end = start + size
 
-        # emit_value
-        #buff[start:end] = bytes(inner_buff[:size]) # XXX Try without bytes
+        buff[start:end] = bytes(inner_buff[:inner_offset]) # XXX Try without bytes
+
+    def parse(self, buff, offset, format_code):
+        assert format_code in self.format_codes
+
+        if format_code == 0xe0:
+            size, count = _struct.unpack_from("!BB", buff, offset)
+            offset += 2
+        elif format_code == 0xf0:
+            size, count = _struct.unpack_from("!II", buff, offset)
+            offset += 8
+        else:
+            raise Exception()
+
+        # XXX parse_constructor
 
 amqp_null = _AmqpNull()
 amqp_boolean = _AmqpBoolean()
@@ -409,6 +421,8 @@ amqp_symbol = _AmqpSymbol()
 
 amqp_list = _AmqpList()
 amqp_map = _AmqpMap()
+
+amqp_array = _AmqpArray()
 
 def get_data_type_for_python_type(value):
     try:
@@ -518,6 +532,8 @@ def _main():
         (amqp_list, [1, 2, "abc"]),
         (amqp_list, [1, 2, {"a": 1, "b": 2}]),
         (amqp_map, {"a": 1, "b": [1, 2, {"a": 1, "b": 2}]}),
+
+        # (amqp_array, [1, 2, 3]),
     ]
 
     buff = memoryview(bytearray(10000)) # XXX buffers
