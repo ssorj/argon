@@ -83,9 +83,10 @@ class _AmqpBoolean(_AmqpDataType):
 
         if format_code == 0x56:
             (value,) = _struct.unpack_from("!B", buff, offset + 1)
+            offset += 1
 
-            if value == 0x00: return offset + 1, False
-            if value == 0x01: return offset + 1, True
+            if value == 0x00: return offset, False
+            if value == 0x01: return offset, True
 
             raise Exception()
 
@@ -123,10 +124,11 @@ class _AmqpFixedWidthType(_AmqpDataType):
         assert format_code in self.format_codes
 
         (value,) = _struct.unpack_from(self.format_string, buff, offset)
+        offset += self.format_width
 
         obj = self.unmarshal(value)
 
-        return offset + self.format_width, obj
+        return offset, obj
 
 class _AmqpChar(_AmqpFixedWidthType):
     def __init__(self):
