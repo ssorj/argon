@@ -4,21 +4,29 @@ except ImportError:
     import ustruct as _struct
 
 _data_types_by_format_code = dict()
+_data_types_by_python_type = dict()
 
 class _AmqpDataType:
-    def __init__(self, name, format_codes):
+    def __init__(self, name, python_types, format_codes):
         self.name = name
+        self.python_types = python_types
         self.format_codes = format_codes
 
+        for type_ in self.python_types:
+            _data_types_by_python_type[type_] = self
+        
         for code in self.format_codes:
             _data_types_by_format_code[code] = self
 
 class _AmqpNull(_AmqpDataType):
     def __init__(self):
-        super().__init__("null", (0x40,))
+        super().__init__("null", (NoneType,), (0x40,))
 
     def emit(self, buff, offset, value):
+        assert type(value) in self.python_types
+        
         _struct.pack_into("!B", buff, offset, 0x40)
+
         return offset + 1
 
     def parse(self, buff, offset, format_code):
@@ -27,9 +35,11 @@ class _AmqpNull(_AmqpDataType):
 
 class _AmqpBoolean(_AmqpDataType):
     def __init__(self):
-        super().__init__("boolean", (0x41, 0x42, 0x56))
+        super().__init__("boolean", (bool,), (0x41, 0x42, 0x56))
 
     def emit(self, buff, offset, value):
+        assert isinstance(obj, self.python_types)
+        
         if value is True:
             _struct.pack_into("!B", buff, offset, 0x41)
         elif value is False:
@@ -56,7 +66,7 @@ class _AmqpBoolean(_AmqpDataType):
         raise Exception()
 
 class _AmqpFixedWidthType(_AmqpDataType):
-    def __init__(self, name, format_codes, format_spec):
+    def __init__(self, name, python_types, format_codes, format_spec):
         super().__init__(name, format_codes)
 
         self.format_code = format_codes[0]
@@ -75,6 +85,7 @@ class _AmqpFixedWidthType(_AmqpDataType):
 
     def emit(self, buff, offset, obj):
         assert offset + self.emit_format_width < len(buff)
+        assert isinstance(obj, self.python_types)
 
         value = self.marshal(obj)
 
@@ -94,7 +105,7 @@ class _AmqpFixedWidthType(_AmqpDataType):
 
 class _AmqpChar(_AmqpFixedWidthType):
     def __init__(self):
-        super().__init__("char", (0x73,), "4s")
+        super().__init__("char", (), (0x73,), "4s")
 
     def marshal(self, char):
         return char.encode("utf-32-be")
@@ -104,7 +115,7 @@ class _AmqpChar(_AmqpFixedWidthType):
 
 class _AmqpTimestamp(_AmqpFixedWidthType):
     def __init__(self):
-        super().__init__("timestamp", (0x83,), "q")
+        super().__init__("timestamp", (), (0x83,), "q")
 
     def marshal(self, time_):
         return int(round(time_ * 1000, 3))
@@ -113,13 +124,15 @@ class _AmqpTimestamp(_AmqpFixedWidthType):
         return round(value / 1000, 3)
 
 class _AmqpVariableWidthType(_AmqpDataType):
-    def __init__(self, name, short_format_code, long_format_code):
-        super().__init__(name, (short_format_code, long_format_code))
+    def __init__(self, name, python_types, short_format_code, long_format_code):
+        super().__init__(name, python_types, (short_format_code, long_format_code))
 
         self.short_format_code = short_format_code
         self.long_format_code = long_format_code
 
     def emit(self, buff, offset, obj):
+        assert isinstance(obj, self.python_types)
+        
         bytes_ = self.marshal(obj)
         size = len(bytes_)
 
@@ -138,7 +151,7 @@ class _AmqpVariableWidthType(_AmqpDataType):
         return end
 
     def parse(self, buff, offset, format_code):
-        assert format_code in self.format_codes, format_code
+        assert format_code in self.format_codes
 
         if format_code == self.short_format_code:
             (size,) = _struct.unpack_from("!B", buff, offset)
@@ -156,7 +169,7 @@ class _AmqpVariableWidthType(_AmqpDataType):
 
 class _AmqpBinary(_AmqpVariableWidthType):
     def __init__(self):
-        super().__init__("binary", 0xa0, 0xb0)
+        super().__init__("binary", (bytes,), 0xa0, 0xb0)
 
     def marshal(self, bytes_):
         return bytes_
@@ -166,7 +179,7 @@ class _AmqpBinary(_AmqpVariableWidthType):
 
 class _AmqpString(_AmqpVariableWidthType):
     def __init__(self):
-        super().__init__("string", 0xa1, 0xb1)
+        super().__init__("string", (str,), 0xa1, 0xb1)
 
     def marshal(self, string):
         return string.encode("utf-8")
@@ -176,7 +189,7 @@ class _AmqpString(_AmqpVariableWidthType):
 
 class _AmqpSymbol(_AmqpVariableWidthType):
     def __init__(self):
-        super().__init__("string", 0xa3, 0xb3)
+        super().__init__("string", (), 0xa3, 0xb3)
 
     def marshal(self, string):
         return string.encode("ascii")
@@ -188,12 +201,26 @@ class _AmqpCompoundType(_AmqpDataType):
     pass
 
 class _AmqpList(_AmqpCompoundType):
-    def __init__(self, short_format_code, long_format_code):
-        super().__init__("list", (short_format_code, long_format_code))
+    def __init__(self, python_types, short_format_code, long_format_code):
+        super().__init__("list", python_types, (short_format_code, long_format_code))
 
         self.short_format_code = short_format_code
         self.long_format_code = long_format_code
 
+    def marshal(self, obj):
+        return obj
+
+    def unmarshal(self, values):
+        return values
+    
+    def emit(self, buff, offset, obj):
+        assert isinstance(obj, self.python_types)
+        
+        values = self.marshal(obj)
+        count = len(values)
+
+        # XXX
+        
     def parse(self, buff, offset, format_code):
         assert format_code in self.format_codes
 
@@ -216,7 +243,9 @@ class _AmqpList(_AmqpCompoundType):
 
         assert inner_offset == end
 
-        return end, values
+        obj = self.unmarshal(values)
+        
+        return end, obj
 
 amqp_null = _AmqpNull()
 amqp_boolean = _AmqpBoolean()
@@ -243,6 +272,11 @@ amqp_uuid = _AmqpFixedWidthType("uuid", (0x98,), "16s")
 amqp_binary = _AmqpBinary()
 amqp_string = _AmqpString()
 amqp_symbol = _AmqpSymbol()
+
+amqp_list = _AmqpList()
+
+def emit_data(buff, offset, value):
+    pass # XXX
 
 def parse_data(buff, offset):
     (format_code,) = _struct.unpack_from("!B", buff, offset)
@@ -345,10 +379,10 @@ def _main():
     output_hexes = list()
 
     for type_, input_value in data:
-        start_offset = offset
+        start = offset
         offset = type_.emit(buff, offset, input_value)
 
-        output_hexes.append(_hex(buff[start_offset:offset]))
+        output_hexes.append(_hex(buff[start:offset]))
 
     offset = 0
     output_values = list()
