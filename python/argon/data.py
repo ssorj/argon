@@ -56,9 +56,6 @@ class _AmqpDataType:
 
         return end
 
-    def parse(self, buff, offset, format_code):
-        return self.parse_data(buff, offset, format_code)
-
     def parse_data(self, buff, offset, format_code):
         end = offset + 1
         value = self.decode(buff[offset:end])
@@ -237,7 +234,7 @@ class _AmqpString(_AmqpVariableWidthType):
 
 class _AmqpSymbol(_AmqpVariableWidthType):
     def __init__(self):
-        super().__init__("string", (), 0xa3, 0xb3)
+        super().__init__("symbol", (), 0xa3, 0xb3)
 
     def encode(self, value):
         return value.encode("ascii")
@@ -347,14 +344,17 @@ class _AmqpMap(_AmqpCompoundType):
 
         return dict_
 
-class _AmqpArray(_AmqpDataType):
-    def __init__(self, element_python_type):
+class AmqpArray(_AmqpDataType):
+    def __init__(self, element_data_type):
         super().__init__("array", (), (0xe0, 0xf0))
 
         self.short_format_code = 0xe0
         self.long_format_code = 0xf0
 
-        self.element_data_type = get_data_type_for_python_type(element_python_type)
+        self.element_data_type = element_data_type
+
+    def __repr__(self):
+        return "{}<{}>".format(self.name, self.element_data_type.name)
 
     def encode(self, value):
         buff = memoryview(bytearray(100000)) # XXX buffers
@@ -479,8 +479,6 @@ def parse_data(buff, offset):
 
     return data_type.parse_data(buff, offset, format_code)
 
-amqp_array = _AmqpArray(int) # XXX
-
 def _hex(buff):
     try:
         import binascii
@@ -522,6 +520,9 @@ def _main():
     except ImportError:
         import random
 
+    def _shorten(string, max_=20):
+        return string[:min(max_, len(string))]
+
     data = [
         (amqp_null, None),
         (amqp_boolean, True),
@@ -560,14 +561,27 @@ def _main():
         (amqp_binary, b"x" * 256),
         (amqp_string, "Hello, \U0001F34B!"),
         (amqp_string, "\U0001F34B" * 256),
-        (amqp_symbol, "Hello!"),
+        (amqp_symbol, "hello"),
         (amqp_symbol, "x" * 256),
 
         (amqp_list, [1, 2, "abc"]),
+        (amqp_list, [1, 2, ["a", "b", "c"]]),
         (amqp_list, [1, 2, {"a": 1, "b": 2}]),
+        (amqp_map, {"a": 1, "b": {1: "x", 2: "y"}}),
         (amqp_map, {"a": 1, "b": [1, 2, {"a": 1, "b": 2}]}),
 
-        (amqp_array, [1, 2, 3]),
+        (AmqpArray(amqp_ubyte), [1, 2, 3]),
+        (AmqpArray(amqp_short), [1, 2, 3]),
+        (AmqpArray(amqp_uint), [1, 2, 3]),
+        (AmqpArray(amqp_long), [1, 2, 3]),
+        (AmqpArray(amqp_float), [1.5, 3.0, 4.5]),
+        (AmqpArray(amqp_double), [1.5, 3.0, 4.5]),
+
+        (AmqpArray(amqp_timestamp), [round(time.time(), 3), round(time.time(), 3), round(time.time(), 3)]),
+        (AmqpArray(amqp_uuid), [_uuid_bytes(), _uuid_bytes(), _uuid_bytes(), ]),
+
+        (AmqpArray(amqp_list), [[1, 2, "abc"], [1, 2, "abc"], [1, 2, "abc"]]),
+        (AmqpArray(amqp_map), [{"a": 1, "b": [1, 2, {"a": 1, "b": 2}]}, {"a": 1, "b": [1, 2, {"a": 1, "b": 2}]}]),
     ]
 
     buff = memoryview(bytearray(10000)) # XXX buffers
@@ -601,14 +615,14 @@ def _main():
 
         output_values.append(value)
 
-    row = "{:5} {:10} {:>22} {:>22} {}"
+    row = "{:5} {:17} {:>22} {:>22} {}"
 
     for i, item in enumerate(data):
         type_, input_value = item
         output_value = output_values[i]
         output_hex = output_hexes[i]
 
-        print(row.format(i, type_.name, str(input_value), str(output_value), output_hex))
+        print(row.format(i, repr(type_), _shorten(str(input_value)), _shorten(str(output_value)), output_hex))
 
 if __name__ == "__main__":
     try:
