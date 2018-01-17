@@ -47,16 +47,16 @@ class _AmqpDataType:
         return offset + 1, format_code_offset
 
     # -> offset, format_code
-    def emit_value(self, buff, offset, value, format_code=None):
-        if format_code is None:
-            format_code = self.format_code
+    # def emit_value(self, buff, offset, value, format_code=None):
+    #     if format_code is None:
+    #         format_code = self.format_code
 
-        octets = self.encode(value)
+    #     octets = self.encode(value)
 
-        end = offset + len(octets)
-        buff[offset:end] = octets
+    #     end = offset + len(octets)
+    #     buff[offset:end] = octets
 
-        return end, format_code
+    #     return end, format_code
 
     # -> offset, value
     def parse_value(self, buff, offset, format_code):
