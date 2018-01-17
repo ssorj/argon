@@ -348,6 +348,8 @@ class _AmqpCompoundType(_AmqpDataType):
         offset = 0
         end = len(octets)
 
+        # XXX I know the count (in parse_value), so i might be able to preallocate the list
+
         while offset < end:
             offset, item = parse_data(octets, offset)
             value.append(item)
