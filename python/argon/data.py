@@ -305,12 +305,6 @@ class _AmqpCollection(_AmqpDataType):
 
         self.short_format_code = short_format_code
         self.long_format_code = long_format_code
-    
-    def encode(self, value):
-        return value
-
-    def decode(self, octets):
-        return bytes(octets)
 
     def emit_size_and_count(self, buff, offset, size, count, format_code=None):
         if format_code is None:
@@ -341,7 +335,7 @@ class _AmqpCollection(_AmqpDataType):
             raise Exception()
 
         return offset, size, count
-    
+
 class _AmqpCompoundType(_AmqpCollection):
     def __init__(self, name, python_type, short_format_code, long_format_code):
         super().__init__(name, python_type, short_format_code, long_format_code)
@@ -353,46 +347,33 @@ class _AmqpCompoundType(_AmqpCollection):
         for item in value:
             offset = emit_value(buff, offset, item)
 
-        return buff[:offset]
+        return buff[:offset], offset, len(value)
 
-    def decode(self, octets):
-        value = list()
-        offset = 0
-        end = len(octets)
+    def decode_from(self, buff, offset, size, count):
+        value = [None] * count
 
-        # XXX I know the count (in parse_value), so i might be able to preallocate the list
+        for i in range(count):
+            offset, value[i] = parse_data(buff, offset)
+            print(i, offset, count)
 
-        while offset < end:
-            offset, item = parse_data(octets, offset)
-            value.append(item)
-
-        assert offset == end
-
-        return value
+        return offset, value
 
     def emit_value(self, buff, offset, value, format_code=None, element_type=None):
         assert format_code in (None, self.short_format_code, self.long_format_code)
 
-        octets = self.encode(value)
-        size = len(octets)
-        count = len(value)
-
+        octets, size, count = self.encode(value)
         offset, format_code = self.emit_size_and_count(buff, offset, size, count, format_code)
-        
+
         end = offset + size
         buff[offset:end] = octets
 
         return end, format_code
 
     def parse_value(self, buff, offset, format_code):
-        print(333, _hex(buff[offset:offset + 10]), self)
-        
         offset, size, count = self.parse_size_and_count(buff, offset, format_code)
+        offset, value = self.decode_from(buff, offset, size, count)
 
-        end = offset + size
-        value = self.decode(buff[offset:end])
-
-        return end, value
+        return offset, value
 
 class _AmqpList(_AmqpCompoundType):
     def __init__(self):
@@ -410,14 +391,14 @@ class _AmqpMap(_AmqpCompoundType):
 
         return super().encode(elems)
 
-    def decode(self, octets):
-        elems = super().decode(octets)
+    def decode_from(self, buff, offset, size, count):
+        offset, elems = super().decode_from(buff, offset, size, count)
         pairs = dict()
 
         for i in range(0, len(elems), 2):
             pairs[elems[i]] = elems[i + 1]
 
-        return pairs
+        return offset, pairs
 
 class _AmqpArray(_AmqpCollection):
     def __init__(self):
@@ -430,31 +411,24 @@ class _AmqpArray(_AmqpCollection):
         for elem in value:
             offset, format_code = element_type.emit_value(buff, offset, elem, element_type.format_code)
 
-        return buff[:offset]
+        return buff[:offset], offset, len(value)
 
-    def decode(self, buff, size, count, element_type):
+    def decode_from(self, buff, offset, size, count, element_type):
         value = [None] * count
-        offset = 0
 
         for i in range(count):
             offset, value[i] = element_type.parse_value(buff, offset, element_type.format_code)
-        
-        assert offset == size
 
-        return value
+        return offset, value
 
     def emit_value(self, buff, offset, value, format_code=None, element_type=None):
         assert format_code in (None, self.short_format_code, self.long_format_code)
         assert element_type is not None
         assert element_type is not amqp_array # Not supported
 
-        octets = self.encode(value, element_type)
-        
-        size = len(octets)
-        count = len(value)
-
+        octets, size, count = self.encode(value, element_type)
         offset, format_code = self.emit_size_and_count(buff, offset, size, count, format_code)
-        
+
         offset, element_format_code_offset = element_type.emit_constructor(buff, offset, None)
         _struct.pack_into("!B", buff, element_format_code_offset, element_type.format_code)
 
@@ -470,11 +444,10 @@ class _AmqpArray(_AmqpCollection):
         offset += 1
 
         element_type = get_data_type_for_format_code(element_format_code)
-        
-        end = offset + size
-        value = self.decode(buff[offset:end], size, count, element_type)
 
-        return end, value
+        offset, value = self.decode_from(buff, offset, size, count, element_type)
+
+        return offset, value
 
 amqp_null = _AmqpNull()
 amqp_boolean = _AmqpBoolean()
@@ -650,13 +623,13 @@ def _main():
         ((amqp_array, amqp_long), [0, 1, 2]),
         ((amqp_array, amqp_float), [0.0, 1.5, 3.0]),
 
-        # (_AmqpArray(amqp_double), [0.0, 1.5, 3.0]),
+        ((amqp_array, amqp_double), [0.0, 1.5, 3.0]),
 
-        # (_AmqpArray(amqp_timestamp), [0.0, round(time.time(), 3), -1.0]),
-        # (_AmqpArray(amqp_uuid), [_uuid_bytes(), _uuid_bytes(), _uuid_bytes()]),
+        ((amqp_array, amqp_timestamp), [0.0, round(time.time(), 3), -1.0]),
+        ((amqp_array, amqp_uuid), [_uuid_bytes(), _uuid_bytes(), _uuid_bytes()]),
 
-        # (_AmqpArray(amqp_list), [[0, 1, "abc"], [0, 1, "abc"], [0, 1, "abc"]]),
-        # (_AmqpArray(amqp_map), [{"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}]),
+        ((amqp_array, amqp_list), [[0, 1, "abc"], [0, 1, "abc"], [0, 1, "abc"]]),
+        ((amqp_array, amqp_map), [{"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}]),
     ]
 
     debug = True
