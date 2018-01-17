@@ -72,6 +72,9 @@ class _AmqpNull(_AmqpDataType):
         _struct.pack_into("!B", buff, offset, self.format_code)
         return offset + 1
 
+    def emit_value(self, buff, offset, value, format_code_offset):
+        return offset
+
     def parse_value(self, buff, offset, format_code):
         return offset, None
 
@@ -126,7 +129,6 @@ class _AmqpFixedWidthType(_AmqpDataType):
         self.format_width = _struct.calcsize(self.format_string)
 
     def encode(self, value):
-        print(111, value)
         return _struct.pack(self.format_string, value)
 
     def decode(self, octets):
@@ -485,12 +487,15 @@ class _AmqpArray(_AmqpDataType):
 
         element_data_type = get_data_type_for_format_code(element_format_code)
 
-        value = list()
+        value = [None] * count
+        index = 0
         end = offset + size
 
         while offset < end:
             offset, elem = element_data_type.parse_value(buff, offset, element_format_code)
-            value.append(elem)
+            value[index] = elem
+
+            index += 1
 
         assert offset == end
 
@@ -541,6 +546,9 @@ def get_data_type_for_python_type(python_type):
 
     if issubclass(python_type, dict):
         return amqp_map
+
+    if python_type is type(None):
+        return amqp_null
 
     raise Exception("No data type for Python type {}".format(python_type))
 
@@ -650,18 +658,20 @@ def _main():
         (amqp_symbol, "hello"),
         (amqp_symbol, "x" * 256),
 
-        (amqp_list, [0, 1, "abc"]),
+        (amqp_list, [None, 0, 1, "abc"]),
         (amqp_list, [0, 1, ["a", "b", "c"]]),
         (amqp_list, [0, 1, {"a": 0, "b": 1}]),
-        (amqp_map, {"a": 0, "b": 1, "c": 2}),
+        (amqp_map, {None: 0, "a": 1, "b": 2}),
         (amqp_map, {"a": 0, "b": {0: "x", 1: "y"}}),
         (amqp_map, {"a": 0, "b": [0, 1, {"a": 0, "b": 1}]}),
 
+        (_AmqpArray(amqp_null), [None, None, None]),
         (_AmqpArray(amqp_ubyte), [0, 1, 2]),
         (_AmqpArray(amqp_short), [0, 1, 2]),
         (_AmqpArray(amqp_uint), [0, 1, 2]),
         (_AmqpArray(amqp_long), [0, 1, 2]),
         (_AmqpArray(amqp_float), [0.0, 1.5, 3.0]),
+
         (_AmqpArray(amqp_double), [0.0, 1.5, 3.0]),
 
         (_AmqpArray(amqp_timestamp), [0.0, round(time.time(), 3), -1.0]),
@@ -671,12 +681,15 @@ def _main():
         # (_AmqpArray(amqp_map), [{"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}]),
     ]
 
+    debug = False
+
     buff = memoryview(bytearray(10000)) # XXX buffers
     offset = 0
     output_hexes = list()
 
     for type_, input_value in data:
-        print("Emitting {} {}".format(type_, input_value))
+        if debug:
+            print("Emitting {} {}".format(type_, input_value))
 
         start = offset
         offset = type_.emit(buff, offset, input_value)
@@ -684,19 +697,22 @@ def _main():
         hex_ = _hex(buff[start:offset])
         output_hexes.append(hex_)
 
-        print("Emitted {}".format(hex_))
+        if debug:
+            print("Emitted {}".format(hex_))
 
     offset = 0
     output_values = list()
 
     for type_, input_value in data:
-        lookahead = _hex(buff[offset:offset + 10])
-        print("Parsing {}... for {} {}".format(lookahead, type_, input_value))
+        if debug:
+            lookahead = _hex(buff[offset:offset + 10])
+            print("Parsing {}... for {} {}".format(lookahead, type_, input_value))
 
         start = offset
         offset, value = parse_data(buff, offset)
 
-        print("Parsed {}".format(_hex(buff[start:offset])))
+        if debug:
+            print("Parsed {}".format(_hex(buff[start:offset])))
 
         assert value == input_value, "Expected {} but got {}".format(input_value, value)
 
