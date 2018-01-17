@@ -24,54 +24,25 @@ class _AmqpDataType:
     def __repr__(self):
         return self.name
 
-    def encode(self, value):
-        raise NotImplementedError()
-
-    def decode(self, octets):
-        raise NotImplementedError()
-
-    # -> offset
-    def emit(self, buff, offset, value):
+    def emit(self, buff, offset, value, element_type=None):
         assert isinstance(value, self.python_type)
 
         offset, format_code_offset = self.emit_constructor(buff, offset, None)
-        offset, format_code = self.emit_value(buff, offset, value)
+        offset, format_code = self.emit_value(buff, offset, value, element_type=element_type)
 
         _struct.pack_into("!B", buff, format_code_offset, format_code)
 
         return offset
 
-    # -> offset, format_code_offset
     def emit_constructor(self, buff, offset, descriptor):
         format_code_offset = offset
         return offset + 1, format_code_offset
-
-    # -> offset, format_code
-    # def emit_value(self, buff, offset, value, format_code=None):
-    #     if format_code is None:
-    #         format_code = self.format_code
-
-    #     octets = self.encode(value)
-
-    #     end = offset + len(octets)
-    #     buff[offset:end] = octets
-
-    #     return end, format_code
-
-    # -> offset, value
-    def parse_value(self, buff, offset, format_code):
-        assert format_code == self.format_code
-
-        end = offset + 1
-        value = self.decode(buff[offset:end])
-
-        return end, value
 
 class _AmqpNull(_AmqpDataType):
     def __init__(self):
         super().__init__("null", type(None), 0x40)
 
-    def emit_value(self, buff, offset, value, format_code=None):
+    def emit_value(self, buff, offset, value, format_code=None, element_type=None):
         return offset, self.format_code
 
     def parse_value(self, buff, offset, format_code):
@@ -81,7 +52,7 @@ class _AmqpBoolean(_AmqpDataType):
     def __init__(self):
         super().__init__("boolean", bool, 0x56, (0x41, 0x42))
 
-    def emit(self, buff, offset, value):
+    def emit(self, buff, offset, value, element_type=None):
         if value is True:
             _struct.pack_into("!B", buff, offset, 0x41)
             return offset + 1
@@ -92,7 +63,7 @@ class _AmqpBoolean(_AmqpDataType):
 
         raise Exception()
 
-    def emit_value(self, buff, offset, value, format_code=None):
+    def emit_value(self, buff, offset, value, format_code=None, element_type=None):
         assert format_code in (None, self.format_code)
 
         if value is True:
@@ -124,7 +95,7 @@ class _AmqpFixedWidthType(_AmqpDataType):
         self.format_string = format_string
         self.format_size = _struct.calcsize(self.format_string)
 
-    def emit_value(self, buff, offset, value, format_code=None):
+    def emit_value(self, buff, offset, value, format_code=None, element_type=None):
         assert format_code in (None, self.format_code)
 
         _struct.pack_into(self.format_string, buff, offset, value)
@@ -144,7 +115,7 @@ class _AmqpUnsignedInt(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("uint", int, 0x70, "!I", (0x43, 0x52))
 
-    def emit(self, buff, offset, value):
+    def emit(self, buff, offset, value, element_type=None):
         if value == 0:
             _struct.pack_into("!B", buff, offset, 0x43)
             return offset + 1
@@ -169,7 +140,7 @@ class _AmqpUnsignedLong(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("ulong", int, 0x80, "!Q", (0x44, 0x53))
 
-    def emit(self, buff, offset, value):
+    def emit(self, buff, offset, value, element_type=None):
         if value == 0:
             _struct.pack_into("!B", buff, offset, 0x44)
             return offset + 1
@@ -178,7 +149,7 @@ class _AmqpUnsignedLong(_AmqpFixedWidthType):
             _struct.pack_into("!BB", buff, offset, 0x53, value)
             return offset + 2
 
-        return super().emit(buff, offset, value)
+        return super().emit(buff, offset, value, element_type)
 
     def parse_value(self, buff, offset, format_code):
         if format_code == 0x44:
@@ -194,12 +165,12 @@ class _AmqpInt(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("int", int, 0x71, "!i", (0x54,))
 
-    def emit(self, buff, offset, value):
+    def emit(self, buff, offset, value, element_type=None):
         if value >= -128 and value <= 127:
             _struct.pack_into("!Bb", buff, offset, 0x54, value)
             return offset + 2
 
-        return super().emit(buff, offset, value)
+        return super().emit(buff, offset, value, element_type)
 
     def parse_value(self, buff, offset, format_code):
         if format_code == 0x54:
@@ -212,12 +183,12 @@ class _AmqpLong(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("long", int, 0x81, "!q", (0x55,))
 
-    def emit(self, buff, offset, value):
+    def emit(self, buff, offset, value, element_type=None):
         if value >= -128 and value <= 127:
             _struct.pack_into("!Bb", buff, offset, 0x55, value)
             return offset + 2
 
-        return super().emit(buff, offset, value)
+        return super().emit(buff, offset, value, element_type)
 
     def parse_value(self, buff, offset, format_code):
         if format_code == 0x55:
@@ -230,9 +201,9 @@ class _AmqpChar(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("char", str, 0x73, "!4s")
 
-    def emit_value(self, buff, offset, value, format_code=None):
+    def emit_value(self, buff, offset, value, format_code=None, element_type=None):
         value = value.encode("utf-32-be")
-        return super().emit_value(buff, offset, value, format_code)
+        return super().emit_value(buff, offset, value, format_code, element_type)
 
     def parse_value(self, buff, offset, format_code):
         offset, value = super().parse_value(buff, offset, format_code)
@@ -242,7 +213,7 @@ class _AmqpTimestamp(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("timestamp", float, 0x83, "!q")
 
-    def emit_value(self, buff, offset, value, format_code=None):
+    def emit_value(self, buff, offset, value, format_code=None, element_type=None):
         value = int(round(value * 1000))
         return super().emit_value(buff, offset, value, format_code)
 
@@ -263,7 +234,7 @@ class _AmqpVariableWidthType(_AmqpDataType):
     def decode(self, octets):
         return bytes(octets)
 
-    def emit_value(self, buff, offset, value, format_code=None):
+    def emit_value(self, buff, offset, value, format_code=None, element_type=None):
         assert format_code in (None, self.short_format_code, self.long_format_code)
 
         octets = self.encode(value)
@@ -328,12 +299,52 @@ class _AmqpSymbol(_AmqpVariableWidthType):
     def decode(self, octets):
         return bytes(octets).decode("ascii")
 
-class _AmqpCompoundType(_AmqpDataType):
+class _AmqpCollection(_AmqpDataType):
     def __init__(self, name, python_type, short_format_code, long_format_code):
         super().__init__(name, python_type, long_format_code, (short_format_code,))
 
         self.short_format_code = short_format_code
         self.long_format_code = long_format_code
+    
+    def encode(self, value):
+        return value
+
+    def decode(self, octets):
+        return bytes(octets)
+
+    def emit_size_and_count(self, buff, offset, size, count, format_code=None):
+        if format_code is None:
+            if size < 256:
+                format_code = self.short_format_code
+            else:
+                format_code = self.long_format_code
+
+        if format_code == self.short_format_code:
+            assert size < 256 and count < 256
+
+            _struct.pack_into("!BB", buff, offset, size, count)
+            offset += 2
+        else:
+            _struct.pack_into("!II", buff, offset, size, count)
+            offset += 8
+
+        return offset, format_code
+
+    def parse_size_and_count(self, buff, offset, format_code):
+        if format_code == self.short_format_code:
+            size, count = _struct.unpack_from("!BB", buff, offset)
+            offset += 2
+        elif format_code == self.long_format_code:
+            size, count = _struct.unpack_from("!II", buff, offset)
+            offset += 8
+        else:
+            raise Exception()
+
+        return offset, size, count
+    
+class _AmqpCompoundType(_AmqpCollection):
+    def __init__(self, name, python_type, short_format_code, long_format_code):
+        super().__init__(name, python_type, short_format_code, long_format_code)
 
     def encode(self, value):
         buff = memoryview(bytearray(10000)) # XXX buffers
@@ -359,42 +370,24 @@ class _AmqpCompoundType(_AmqpDataType):
 
         return value
 
-    def emit_value(self, buff, offset, value, format_code=None):
+    def emit_value(self, buff, offset, value, format_code=None, element_type=None):
         assert format_code in (None, self.short_format_code, self.long_format_code)
 
         octets = self.encode(value)
         size = len(octets)
         count = len(value)
 
-        if format_code is None:
-            if size < 256 and count < 256:
-                format_code = self.short_format_code
-            else:
-                format_code = self.long_format_code
-
-        if format_code == self.short_format_code:
-            assert size < 256 and count < 256
-
-            _struct.pack_into("!BB", buff, offset, size, count)
-            offset += 2
-        else:
-            _struct.pack_into("!II", buff, offset, size, count)
-            offset += 8
-
+        offset, format_code = self.emit_size_and_count(buff, offset, size, count, format_code)
+        
         end = offset + size
         buff[offset:end] = octets
 
         return end, format_code
 
     def parse_value(self, buff, offset, format_code):
-        if format_code == self.short_format_code:
-            size, count = _struct.unpack_from("!BB", buff, offset)
-            offset += 2
-        elif format_code == self.long_format_code:
-            size, count = _struct.unpack_from("!II", buff, offset)
-            offset += 8
-        else:
-            raise Exception()
+        print(333, _hex(buff[offset:offset + 10]), self)
+        
+        offset, size, count = self.parse_size_and_count(buff, offset, format_code)
 
         end = offset + size
         value = self.decode(buff[offset:end])
@@ -426,54 +419,44 @@ class _AmqpMap(_AmqpCompoundType):
 
         return pairs
 
-class _AmqpArray(_AmqpDataType):
-    def __init__(self, element):
-        super().__init__("array", list, 0xf0, (0xe0,))
+class _AmqpArray(_AmqpCollection):
+    def __init__(self):
+        super().__init__("array", list, 0xf0, 0xe0)
 
-        self.short_format_code = 0xe0
-        self.long_format_code = 0xf0
-
-        self.element = element
-
-    def __repr__(self):
-        return "{}<{}>".format(self.name, self.element.name)
-
-    def encode(self, value):
+    def encode(self, value, element_type):
         buff = memoryview(bytearray(100000)) # XXX buffers
         offset = 0
 
-        for item in value:
-            offset, format_code = self.element.emit_value(buff, offset, item, self.element.format_code)
+        for elem in value:
+            offset, format_code = element_type.emit_value(buff, offset, elem, element_type.format_code)
 
         return buff[:offset]
 
-    def decode(self, octets):
-        raise NotImplementedError()
+    def decode(self, buff, size, count, element_type):
+        value = [None] * count
+        offset = 0
 
-    def emit_value(self, buff, offset, value, format_code=None):
+        for i in range(count):
+            offset, value[i] = element_type.parse_value(buff, offset, element_type.format_code)
+        
+        assert offset == size
+
+        return value
+
+    def emit_value(self, buff, offset, value, format_code=None, element_type=None):
         assert format_code in (None, self.short_format_code, self.long_format_code)
+        assert element_type is not None
+        assert element_type is not amqp_array # Not supported
 
-        octets = self.encode(value)
+        octets = self.encode(value, element_type)
+        
         size = len(octets)
         count = len(value)
 
-        if format_code is None:
-            if size < 256:
-                format_code = self.short_format_code
-            else:
-                format_code = self.long_format_code
-
-        if format_code == self.short_format_code:
-            assert size < 256 and count < 256
-
-            _struct.pack_into("!BB", buff, offset, size, count)
-            offset += 2
-        else:
-            _struct.pack_into("!II", buff, offset, size, count)
-            offset += 8
-
-        offset, format_code_offset = self.element.emit_constructor(buff, offset, None)
-        _struct.pack_into("!B", buff, format_code_offset, self.element.format_code)
+        offset, format_code = self.emit_size_and_count(buff, offset, size, count, format_code)
+        
+        offset, element_format_code_offset = element_type.emit_constructor(buff, offset, None)
+        _struct.pack_into("!B", buff, element_format_code_offset, element_type.format_code)
 
         end = offset + size
         buff[offset:end] = octets
@@ -481,33 +464,17 @@ class _AmqpArray(_AmqpDataType):
         return end, format_code
 
     def parse_value(self, buff, offset, format_code):
-        if format_code == self.short_format_code:
-            size, count = _struct.unpack_from("!BB", buff, offset)
-            offset += 2
-        elif format_code == self.long_format_code:
-            size, count = _struct.unpack_from("!II", buff, offset)
-            offset += 8
-        else:
-            raise Exception()
+        offset, size, count = self.parse_size_and_count(buff, offset, format_code)
 
         element_format_code = _struct.unpack_from("!B", buff, offset)[0]
         offset += 1
 
-        element_data_type = get_data_type_for_format_code(element_format_code)
-
-        value = [None] * count
-        index = 0
+        element_type = get_data_type_for_format_code(element_format_code)
+        
         end = offset + size
+        value = self.decode(buff[offset:end], size, count, element_type)
 
-        while offset < end:
-            offset, elem = element_data_type.parse_value(buff, offset, element_format_code)
-            value[index] = elem
-
-            index += 1
-
-        assert offset == end
-
-        return offset, value
+        return end, value
 
 amqp_null = _AmqpNull()
 amqp_boolean = _AmqpBoolean()
@@ -535,6 +502,7 @@ amqp_symbol = _AmqpSymbol()
 
 amqp_list = _AmqpList()
 amqp_map = _AmqpMap()
+amqp_array = _AmqpArray()
 
 # XXX get_data_type for obj
 
@@ -675,23 +643,23 @@ def _main():
         (amqp_map, {"a": 0, "b": {0: "x", 1: "y"}}),
         (amqp_map, {"a": 0, "b": [0, 1, {"a": 0, "b": 1}]}),
 
-        (_AmqpArray(amqp_null), [None, None, None]),
-        (_AmqpArray(amqp_ubyte), [0, 1, 2]),
-        (_AmqpArray(amqp_short), [0, 1, 2]),
-        (_AmqpArray(amqp_uint), [0, 1, 2]),
-        (_AmqpArray(amqp_long), [0, 1, 2]),
-        (_AmqpArray(amqp_float), [0.0, 1.5, 3.0]),
+        ((amqp_array, amqp_null), [None, None, None]),
+        ((amqp_array, amqp_ubyte), [0, 1, 2]),
+        ((amqp_array, amqp_ushort), [0, 1, 2]),
+        ((amqp_array, amqp_uint), [0, 1, 2]),
+        ((amqp_array, amqp_long), [0, 1, 2]),
+        ((amqp_array, amqp_float), [0.0, 1.5, 3.0]),
 
-        (_AmqpArray(amqp_double), [0.0, 1.5, 3.0]),
+        # (_AmqpArray(amqp_double), [0.0, 1.5, 3.0]),
 
-        (_AmqpArray(amqp_timestamp), [0.0, round(time.time(), 3), -1.0]),
-        (_AmqpArray(amqp_uuid), [_uuid_bytes(), _uuid_bytes(), _uuid_bytes(), ]),
+        # (_AmqpArray(amqp_timestamp), [0.0, round(time.time(), 3), -1.0]),
+        # (_AmqpArray(amqp_uuid), [_uuid_bytes(), _uuid_bytes(), _uuid_bytes()]),
 
-        (_AmqpArray(amqp_list), [[0, 1, "abc"], [0, 1, "abc"], [0, 1, "abc"]]),
-        (_AmqpArray(amqp_map), [{"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}]),
+        # (_AmqpArray(amqp_list), [[0, 1, "abc"], [0, 1, "abc"], [0, 1, "abc"]]),
+        # (_AmqpArray(amqp_map), [{"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}]),
     ]
 
-    debug = False
+    debug = True
 
     buff = memoryview(bytearray(10000)) # XXX buffers
     offset = 0
@@ -702,7 +670,12 @@ def _main():
             print("Emitting {} {}".format(type_, input_value))
 
         start = offset
-        offset = type_.emit(buff, offset, input_value)
+
+        if type(type_) is tuple:
+            type_, element_type = type_
+            offset = type_.emit(buff, offset, input_value, element_type=element_type)
+        else:
+            offset = type_.emit(buff, offset, input_value)
 
         hex_ = _hex(buff[start:offset])
         output_hexes.append(hex_)
