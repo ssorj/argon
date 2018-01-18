@@ -19,11 +19,8 @@
 
 from argon.common import _Buffer, _struct, _hex, _namedtuple, _uuid_bytes
 
-_data_types_by_format_code = dict()
-_data_types_by_python_type = dict()
-
 class _AmqpDataType:
-    def __init__(self, name, python_type, format_code, special_format_codes=(), descriptor_type=None):
+    def __init__(self, name, python_type, format_code, descriptor_type=None):
         assert name is not None
         assert python_type is not None
         assert format_code is not None
@@ -31,13 +28,7 @@ class _AmqpDataType:
         self.name = name
         self.python_type = python_type
         self.format_code = format_code
-
         self.descriptor_type = descriptor_type
-        
-        _data_types_by_format_code[self.format_code] = self
-
-        for code in special_format_codes:
-            _data_types_by_format_code[code] = self
 
     def __repr__(self):
         return self.name
@@ -79,7 +70,7 @@ class _AmqpNull(_AmqpDataType):
 
 class _AmqpBoolean(_AmqpDataType):
     def __init__(self):
-        super().__init__("boolean", bool, 0x56, (0x41, 0x42))
+        super().__init__("boolean", bool, 0x56)
 
     def emit(self, buff, offset, value, element_type=None):
         if value is True:
@@ -114,8 +105,8 @@ class _AmqpBoolean(_AmqpDataType):
             return offset + 1, True
 
 class _AmqpFixedWidthType(_AmqpDataType):
-    def __init__(self, name, python_type, format_code, format_string, special_format_codes=()):
-        super().__init__(name, python_type, format_code, special_format_codes)
+    def __init__(self, name, python_type, format_code, format_string):
+        super().__init__(name, python_type, format_code)
 
         self.format_string = format_string
         self.format_size = _struct.calcsize(self.format_string)
@@ -132,7 +123,7 @@ class _AmqpFixedWidthType(_AmqpDataType):
 
 class _AmqpUnsignedInt(_AmqpFixedWidthType):
     def __init__(self):
-        super().__init__("uint", int, 0x70, "!I", (0x43, 0x52))
+        super().__init__("uint", int, 0x70, "!I")
 
     def emit(self, buff, offset, value, element_type=None):
         if value == 0:
@@ -154,7 +145,7 @@ class _AmqpUnsignedInt(_AmqpFixedWidthType):
 
 class _AmqpUnsignedLong(_AmqpFixedWidthType):
     def __init__(self):
-        super().__init__("ulong", int, 0x80, "!Q", (0x44, 0x53))
+        super().__init__("ulong", int, 0x80, "!Q")
 
     def emit(self, buff, offset, value, element_type=None):
         if value == 0:
@@ -176,7 +167,7 @@ class _AmqpUnsignedLong(_AmqpFixedWidthType):
 
 class _AmqpInt(_AmqpFixedWidthType):
     def __init__(self):
-        super().__init__("int", int, 0x71, "!i", (0x54,))
+        super().__init__("int", int, 0x71, "!i")
 
     def emit(self, buff, offset, value, element_type=None):
         if value >= -128 and value <= 127:
@@ -192,7 +183,7 @@ class _AmqpInt(_AmqpFixedWidthType):
 
 class _AmqpLong(_AmqpFixedWidthType):
     def __init__(self):
-        super().__init__("long", int, 0x81, "!q", (0x55,))
+        super().__init__("long", int, 0x81, "!q")
 
     def emit(self, buff, offset, value, element_type=None):
         if value >= -128 and value <= 127:
@@ -232,7 +223,7 @@ class _AmqpTimestamp(_AmqpFixedWidthType):
 
 class _AmqpVariableWidthType(_AmqpDataType):
     def __init__(self, name, python_type, short_format_code, long_format_code):
-        super().__init__(name, python_type, long_format_code, (short_format_code,))
+        super().__init__(name, python_type, long_format_code)
 
         self.short_format_code = short_format_code
         self.long_format_code = long_format_code
@@ -241,7 +232,7 @@ class _AmqpVariableWidthType(_AmqpDataType):
         return value
 
     def decode(self, octets):
-        return bytes(octets)
+        return bytes(octets) # XXX memoryview
 
     def emit_value(self, buff, offset, value, format_code=None, element_type=None):
         assert format_code in (None, self.short_format_code, self.long_format_code)
@@ -305,7 +296,7 @@ class _AmqpSymbol(_AmqpVariableWidthType):
 
 class _AmqpCollection(_AmqpDataType):
     def __init__(self, name, python_type, short_format_code, long_format_code):
-        super().__init__(name, python_type, long_format_code, (short_format_code,))
+        super().__init__(name, python_type, long_format_code)
 
         self.short_format_code = short_format_code
         self.long_format_code = long_format_code
@@ -483,6 +474,44 @@ amqp_symbol = _AmqpSymbol()
 amqp_list = _AmqpList()
 amqp_map = _AmqpMap()
 amqp_array = _AmqpArray()
+
+_data_types_by_format_code = {
+    0x40: amqp_null,
+    0x41: amqp_boolean,
+    0x42: amqp_boolean,
+    0x43: amqp_uint,
+    0x44: amqp_ulong,
+    0x50: amqp_ubyte,
+    0x51: amqp_byte,
+    0x52: amqp_uint,
+    0x53: amqp_ulong,
+    0x54: amqp_int,
+    0x55: amqp_long,
+    0x56: amqp_boolean,
+    0x60: amqp_ushort,
+    0x61: amqp_short,
+    0x70: amqp_uint,
+    0x71: amqp_int,
+    0x72: amqp_float,
+    0x73: amqp_char,
+    0x80: amqp_ulong,
+    0x81: amqp_long,
+    0x82: amqp_double,
+    0x83: amqp_timestamp,
+    0x98: amqp_uuid,
+    0xa0: amqp_binary,
+    0xa1: amqp_string,
+    0xa3: amqp_symbol,
+    0xb0: amqp_binary,
+    0xb1: amqp_string,
+    0xb3: amqp_symbol,
+    0xc0: amqp_list,
+    0xc1: amqp_map,
+    0xd0: amqp_array,
+    0xd0: amqp_list,
+    0xd1: amqp_map,
+    0xf0: amqp_array,
+}
 
 # XXX get_data_type for obj
 
