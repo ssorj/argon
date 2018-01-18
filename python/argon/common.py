@@ -24,6 +24,11 @@ try:
 except ImportError:
     import ustruct as _struct
 
+try:
+    from collections import namedtuple as _namedtuple
+except ImportError:
+    from ucollections import namedtuple as _namedtuple
+    
 _micropython = _sys.implementation.name == "micropython"
 
 if _micropython:

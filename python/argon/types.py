@@ -17,7 +17,7 @@
 # under the License.
 #
 
-from argon.common import _Buffer, _struct, _hex, _uuid_bytes
+from argon.common import _Buffer, _struct, _hex, _namedtuple, _uuid_bytes
 
 _data_types_by_format_code = dict()
 _data_types_by_python_type = dict()
@@ -41,19 +41,29 @@ class _AmqpDataType:
         return self.name
 
     def emit(self, buff, offset, value, element_type=None):
-        assert isinstance(value, self.python_type)
+        assert isinstance(value, self.python_type) or isinstance(value.value, self.python_type)
 
-        offset, format_code_offset = self.emit_constructor(buff, offset, None)
+        descriptor = None
+        
+        if isinstance(value, DescribedValue):
+            descriptor = value.descriptor
+            value = value.value
+        
+        offset, format_code_offset = self.emit_constructor(buff, offset, descriptor)
         offset, format_code = self.emit_value(buff, offset, value, element_type=element_type)
 
         buff.pack(format_code_offset, 1, "!B", format_code)
 
         return offset
 
-    def emit_constructor(self, buff, offset, descriptor):
-        format_code_offset = offset
-        buff.ensure(offset + 1)
-        return offset + 1, format_code_offset
+    def emit_constructor(self, buff, offset, descriptor=None):
+        if descriptor is not None:
+            offset = buff.pack(offset, 1, "!B", 0x00)
+            offset = emit_value(buff, offset, descriptor)
+
+        offset += 1
+
+        return offset, offset - 1
 
 class _AmqpNull(_AmqpDataType):
     def __init__(self):
@@ -317,7 +327,7 @@ class _AmqpCollection(_AmqpDataType):
     def parse_size_and_count(self, buff, offset, format_code):
         if format_code == self.short_format_code:
             return buff.unpack(offset, 2, "!BB")
-        
+
         if format_code == self.long_format_code:
             return buff.unpack(offset, 8, "!II")
 
@@ -332,7 +342,7 @@ class _AmqpCompoundType(_AmqpCollection):
         offset = 0
 
         offset = self.encode_into(buff, offset, value)
-        
+
         return buff[:offset], offset, len(value)
 
     def encode_into(self, buff, offset, value):
@@ -340,7 +350,7 @@ class _AmqpCompoundType(_AmqpCollection):
             offset = emit_value(buff, offset, item)
 
         return offset
-    
+
     def decode_from(self, buff, offset, size, count):
         value = [None] * count
 
@@ -420,9 +430,15 @@ class _AmqpArray(_AmqpCollection):
         octets, size, count = self.encode(value, element_type)
         offset, format_code = self.emit_size_and_count(buff, offset, size, count, format_code)
 
+        descriptor = None
+
+        if isinstance(value, DescribedValue):
+            descriptor = value.descriptor
+            value = value.value
+        
         offset, element_format_code_offset = element_type.emit_constructor(buff, offset, None)
         buff.pack(element_format_code_offset, 1, "!B", element_type.format_code)
-        
+
         end = offset + size
         buff[offset:end] = octets
 
@@ -438,6 +454,19 @@ class _AmqpArray(_AmqpCollection):
         offset, value = self.decode_from(buff, offset, size, count, element_type)
 
         return offset, value
+
+class DescribedValue:
+    __slots__ = "descriptor", "value"
+
+    def __init__(self, descriptor, value):
+        self.descriptor = descriptor
+        self.value = value
+
+    def __eq__(self, other):
+        return (self.descriptor, self.value) == (other.descriptor, other.value)
+
+    def __hash__(self):
+        return hash((self.descriptor, self.value))
 
 amqp_null = _AmqpNull()
 amqp_boolean = _AmqpBoolean()
@@ -504,11 +533,26 @@ def emit_value(buff, offset, value):
     return data_type.emit(buff, offset, value)
 
 def parse_data(buff, offset):
-    offset, format_code = buff.unpack(offset, 1, "!B")
-
+    offset, format_code, descriptor = _parse_constructor(buff, offset)
+    
     data_type = get_data_type_for_format_code(format_code)
 
-    return data_type.parse_value(buff, offset, format_code)
+    offset, value = data_type.parse_value(buff, offset, format_code)
+    
+    if descriptor is not None:
+        value = DescribedValue(descriptor, value)
+
+    return offset, value
+
+def _parse_constructor(buff, offset):
+    offset, format_code = buff.unpack(offset, 1, "!B")
+    descriptor = None
+
+    if format_code == 0x00:
+        offset, descriptor = parse_data(buff, offset)
+        offset, format_code = buff.unpack(offset, 1, "!B")
+
+    return offset, format_code, descriptor
 
 def _main():
     try:
@@ -526,6 +570,8 @@ def _main():
 
     data = [
         (amqp_null, None),
+        (amqp_null, DescribedValue(b"a", None)),
+        
         (amqp_boolean, True),
         (amqp_boolean, False),
 
@@ -591,7 +637,7 @@ def _main():
         ((amqp_array, amqp_map), [{"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}]),
     ]
 
-    debug = False
+    debug = True
 
     buff = _Buffer()
     offset = 0
