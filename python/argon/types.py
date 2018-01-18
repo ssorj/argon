@@ -33,7 +33,7 @@ class _AmqpDataType:
     def __repr__(self):
         return self.name
 
-    def emit(self, buff, offset, value, element_type=None):
+    def emit(self, buff, offset, value):
         descriptor = None
 
         if self.descriptor_type is not None:
@@ -42,7 +42,7 @@ class _AmqpDataType:
         assert isinstance(value, self.python_type)
 
         offset, format_code_offset = self.emit_constructor(buff, offset, descriptor)
-        offset, format_code = self.emit_value(buff, offset, value, element_type=element_type)
+        offset, format_code = self.emit_value(buff, offset, value)
 
         buff.pack(format_code_offset, 1, "!B", format_code)
 
@@ -62,7 +62,7 @@ class AmqpNull(_AmqpDataType):
     def __init__(self, descriptor_type=None):
         super().__init__("null", type(None), 0x40, descriptor_type=descriptor_type)
 
-    def emit_value(self, buff, offset, value, format_code=None, element_type=None):
+    def emit_value(self, buff, offset, value):
         return offset, self.format_code
 
     def parse_value(self, buff, offset, format_code):
@@ -72,15 +72,13 @@ class AmqpBoolean(_AmqpDataType):
     def __init__(self):
         super().__init__("boolean", bool, 0x56)
 
-    def emit(self, buff, offset, value, element_type=None):
+    def emit(self, buff, offset, value):
         if value is True: return buff.pack(offset, 1, "!B", 0x41)
         if value is False: return buff.pack(offset, 1, "!B", 0x42)
 
         raise Exception()
 
-    def emit_value(self, buff, offset, value, format_code=None, element_type=None):
-        assert format_code in (None, self.format_code)
-
+    def emit_value(self, buff, offset, value):
         return buff.pack(offset, 1, "!?", value), self.format_code
 
     def parse_value(self, buff, offset, format_code):
@@ -96,9 +94,7 @@ class _AmqpFixedWidthType(_AmqpDataType):
         self.format_string = format_string
         self.format_size = _struct.calcsize(self.format_string)
 
-    def emit_value(self, buff, offset, value, format_code=None, element_type=None):
-        assert format_code in (None, self.format_code)
-
+    def emit_value(self, buff, offset, value):
         offset = buff.pack(offset, self.format_size, self.format_string, value)
 
         return offset, self.format_code
@@ -118,7 +114,7 @@ class AmqpUnsignedInt(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("uint", int, 0x70, "!I")
 
-    def emit(self, buff, offset, value, element_type=None):
+    def emit(self, buff, offset, value):
         if value == 0: return buff.pack(offset, 1, "!B", 0x43)
         if value < 256: return buff.pack(offset, 2, "!BB", 0x52, value)
 
@@ -134,11 +130,11 @@ class AmqpUnsignedLong(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("ulong", int, 0x80, "!Q")
 
-    def emit(self, buff, offset, value, element_type=None):
+    def emit(self, buff, offset, value):
         if value == 0: return buff.pack(offset, 1, "!B", 0x44)
         if value < 256: return buff.pack(offset, 2, "!BB", 0x53, value)
 
-        return super().emit(buff, offset, value, element_type)
+        return super().emit(buff, offset, value)
 
     def parse_value(self, buff, offset, format_code):
         if format_code == 0x44: return offset, 0
@@ -158,11 +154,11 @@ class AmqpInt(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("int", int, 0x71, "!i")
 
-    def emit(self, buff, offset, value, element_type=None):
+    def emit(self, buff, offset, value):
         if value >= -128 and value <= 127:
             return buff.pack(offset, 2, "!Bb", 0x54, value)
 
-        return super().emit(buff, offset, value, element_type)
+        return super().emit(buff, offset, value)
 
     def parse_value(self, buff, offset, format_code):
         if format_code == 0x54: return buff.unpack(offset, 1, "!b")
@@ -173,11 +169,11 @@ class AmqpLong(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("long", int, 0x81, "!q")
 
-    def emit(self, buff, offset, value, element_type=None):
+    def emit(self, buff, offset, value):
         if value >= -128 and value <= 127:
             return buff.pack(offset, 2, "!Bb", 0x55, value)
 
-        return super().emit(buff, offset, value, element_type)
+        return super().emit(buff, offset, value)
 
     def parse_value(self, buff, offset, format_code):
         if format_code == 0x55: return buff.unpack(offset, 1, "!b")
@@ -196,9 +192,9 @@ class AmqpChar(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("char", str, 0x73, "!4s")
 
-    def emit_value(self, buff, offset, value, format_code=None, element_type=None):
+    def emit_value(self, buff, offset, value):
         value = value.encode("utf-32-be")
-        return super().emit_value(buff, offset, value, format_code, element_type)
+        return super().emit_value(buff, offset, value)
 
     def parse_value(self, buff, offset, format_code):
         offset, value = super().parse_value(buff, offset, format_code)
@@ -212,9 +208,9 @@ class AmqpTimestamp(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("timestamp", float, 0x83, "!q")
 
-    def emit_value(self, buff, offset, value, format_code=None, element_type=None):
+    def emit_value(self, buff, offset, value):
         value = int(round(value * 1000))
-        return super().emit_value(buff, offset, value, format_code)
+        return super().emit_value(buff, offset, value)
 
     def parse_value(self, buff, offset, format_code):
         offset, value = super().parse_value(buff, offset, format_code)
@@ -233,22 +229,15 @@ class _AmqpVariableWidthType(_AmqpDataType):
     def decode(self, octets):
         return bytes(octets) # XXX memoryview
 
-    def emit_value(self, buff, offset, value, format_code=None, element_type=None):
-        assert format_code in (None, self.short_format_code, self.long_format_code)
-
+    def emit_value(self, buff, offset, value):
         octets = self.encode(value)
         size = len(octets)
 
-        if format_code is None:
-            if size < 256:
-                format_code = self.short_format_code
-            else:
-                format_code = self.long_format_code
-
-        if format_code == self.short_format_code:
-            assert size < 256
+        if size < 256:
+            format_code = self.short_format_code
             offset = buff.pack(offset, 1, "!B", size)
         else:
+            format_code = self.long_format_code
             offset = buff.pack(offset, 4, "!I", size)
 
         end = offset + size
@@ -300,18 +289,12 @@ class _AmqpCollection(_AmqpDataType):
         self.short_format_code = short_format_code
         self.long_format_code = long_format_code
 
-    def emit_size_and_count(self, buff, offset, size, count, format_code=None):
-        if format_code is None:
-            if size < 256 and count < 256:
-                format_code = self.short_format_code
-            else:
-                format_code = self.long_format_code
-
-        if format_code == self.short_format_code:
-            assert size < 256 and count < 256
-
+    def emit_size_and_count(self, buff, offset, size, count):
+        if size < 256 and count < 256:
+            format_code = self.short_format_code
             offset = buff.pack(offset, 2, "!BB", size, count)
         else:
+            format_code = self.long_format_code
             offset = buff.pack(offset, 8, "!II", size, count)
 
         return offset, format_code
@@ -351,11 +334,9 @@ class _AmqpCompoundType(_AmqpCollection):
 
         return offset, value
 
-    def emit_value(self, buff, offset, value, format_code=None, element_type=None):
-        assert format_code in (None, self.short_format_code, self.long_format_code)
-
+    def emit_value(self, buff, offset, value):
         octets, size, count = self.encode(value)
-        offset, format_code = self.emit_size_and_count(buff, offset, size, count, format_code)
+        offset, format_code = self.emit_size_and_count(buff, offset, size, count)
 
         end = offset + size
         buff[offset:end] = octets
@@ -414,8 +395,7 @@ class AmqpArray(_AmqpCollection):
 
         return offset, value
 
-    def emit_value(self, buff, offset, value, format_code=None, element_type=None):
-        assert format_code in (None, self.short_format_code, self.long_format_code)
+    def emit_value(self, buff, offset, value, element_type=None):
         assert element_type is not None
         assert element_type is not amqp_array # Not supported
 
@@ -668,7 +648,7 @@ def _main():
 
             if type(type_) is tuple:
                 type_, element_type = type_
-                offset = type_.emit(buff, offset, input_value, element_type=element_type)
+                offset = type_.emit(buff, offset, input_value)
             else:
                 offset = type_.emit(buff, offset, input_value)
 
