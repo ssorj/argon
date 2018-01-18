@@ -73,11 +73,8 @@ class _AmqpBoolean(_AmqpDataType):
         super().__init__("boolean", bool, 0x56)
 
     def emit(self, buff, offset, value, element_type=None):
-        if value is True:
-            return buff.pack(offset, 1, "!B", 0x41)
-
-        if value is False:
-            return buff.pack(offset, 1, "!B", 0x42)
+        if value is True: return buff.pack(offset, 1, "!B", 0x41)
+        if value is False: return buff.pack(offset, 1, "!B", 0x42)
 
         raise Exception()
 
