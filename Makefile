@@ -1,18 +1,16 @@
 export PYTHONPATH := python
+export MICROPYPATH := python
 
 .PHONY: test
-test: test-micropython
-
-.PHONY: big-test
-big-test: test-micropython test-cpython
-
-.PHONY: test-micropython
-test-micropython:
-	micropython python/argon/data.py
+test: test-cpython test-micropython
 
 .PHONY: test-cpython
 test-cpython:
-	python3 -m argon.data
+	python3 -m argon.types
+
+.PHONY: test-micropython
+test-micropython:
+	micropython python/argon/types.py
 
 .PHONY: clean
 clean:
