@@ -23,7 +23,7 @@ _data_types_by_format_code = dict()
 _data_types_by_python_type = dict()
 
 class _AmqpDataType:
-    def __init__(self, name, python_type, format_code, special_format_codes=()):
+    def __init__(self, name, python_type, format_code, special_format_codes=(), descriptor_type=None):
         assert name is not None
         assert python_type is not None
         assert format_code is not None
@@ -32,6 +32,8 @@ class _AmqpDataType:
         self.python_type = python_type
         self.format_code = format_code
 
+        self.descriptor_type = descriptor_type
+        
         _data_types_by_format_code[self.format_code] = self
 
         for code in special_format_codes:
@@ -41,14 +43,13 @@ class _AmqpDataType:
         return self.name
 
     def emit(self, buff, offset, value, element_type=None):
-        assert isinstance(value, self.python_type) or isinstance(value.value, self.python_type)
-
         descriptor = None
         
-        if isinstance(value, DescribedValue):
-            descriptor = value.descriptor
-            value = value.value
+        if self.descriptor_type is not None:
+            descriptor, value = value
         
+        assert isinstance(value, self.python_type)
+
         offset, format_code_offset = self.emit_constructor(buff, offset, descriptor)
         offset, format_code = self.emit_value(buff, offset, value, element_type=element_type)
 
@@ -56,18 +57,19 @@ class _AmqpDataType:
 
         return offset
 
-    def emit_constructor(self, buff, offset, descriptor=None):
-        if descriptor is not None:
+    def emit_constructor(self, buff, offset, descriptor):
+        if self.descriptor_type is not None:
             offset = buff.pack(offset, 1, "!B", 0x00)
-            offset = emit_value(buff, offset, descriptor)
+            offset = self.descriptor_type.emit(buff, offset, descriptor)
 
-        offset += 1
+        format_code_offset = offset # The format code is filled in later
+        offset += 1 
 
-        return offset, offset - 1
+        return offset, format_code_offset
 
 class _AmqpNull(_AmqpDataType):
-    def __init__(self):
-        super().__init__("null", type(None), 0x40)
+    def __init__(self, descriptor_type=None):
+        super().__init__("null", type(None), 0x40, descriptor_type=descriptor_type)
 
     def emit_value(self, buff, offset, value, format_code=None, element_type=None):
         return offset, self.format_code
@@ -427,16 +429,15 @@ class _AmqpArray(_AmqpCollection):
         assert element_type is not None
         assert element_type is not amqp_array # Not supported
 
+        descriptor = None
+        
+        if self.descriptor_type is not None:
+            descriptor, value = value
+        
         octets, size, count = self.encode(value, element_type)
         offset, format_code = self.emit_size_and_count(buff, offset, size, count, format_code)
 
-        descriptor = None
-
-        if isinstance(value, DescribedValue):
-            descriptor = value.descriptor
-            value = value.value
-        
-        offset, element_format_code_offset = element_type.emit_constructor(buff, offset, None)
+        offset, element_format_code_offset = element_type.emit_constructor(buff, offset, descriptor)
         buff.pack(element_format_code_offset, 1, "!B", element_type.format_code)
 
         end = offset + size
@@ -454,19 +455,6 @@ class _AmqpArray(_AmqpCollection):
         offset, value = self.decode_from(buff, offset, size, count, element_type)
 
         return offset, value
-
-class DescribedValue:
-    __slots__ = "descriptor", "value"
-
-    def __init__(self, descriptor, value):
-        self.descriptor = descriptor
-        self.value = value
-
-    def __eq__(self, other):
-        return (self.descriptor, self.value) == (other.descriptor, other.value)
-
-    def __hash__(self):
-        return hash((self.descriptor, self.value))
 
 amqp_null = _AmqpNull()
 amqp_boolean = _AmqpBoolean()
@@ -538,9 +526,9 @@ def parse_data(buff, offset):
     data_type = get_data_type_for_format_code(format_code)
 
     offset, value = data_type.parse_value(buff, offset, format_code)
-    
+
     if descriptor is not None:
-        value = DescribedValue(descriptor, value)
+        value = (descriptor, value)
 
     return offset, value
 
@@ -570,7 +558,7 @@ def _main():
 
     data = [
         (amqp_null, None),
-        (amqp_null, DescribedValue(b"a", None)),
+        (_AmqpNull(amqp_symbol), ("a", None)),
         
         (amqp_boolean, True),
         (amqp_boolean, False),
