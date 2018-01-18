@@ -58,7 +58,7 @@ class _AmqpDataType:
 
         return offset, format_code_offset
 
-class _AmqpNull(_AmqpDataType):
+class AmqpNull(_AmqpDataType):
     def __init__(self, descriptor_type=None):
         super().__init__("null", type(None), 0x40, descriptor_type=descriptor_type)
 
@@ -68,7 +68,7 @@ class _AmqpNull(_AmqpDataType):
     def parse_value(self, buff, offset, format_code):
         return offset, None
 
-class _AmqpBoolean(_AmqpDataType):
+class AmqpBoolean(_AmqpDataType):
     def __init__(self):
         super().__init__("boolean", bool, 0x56)
 
@@ -106,7 +106,15 @@ class _AmqpFixedWidthType(_AmqpDataType):
     def parse_value(self, buff, offset, format_code):
         return buff.unpack(offset, self.format_size, self.format_string)
 
-class _AmqpUnsignedInt(_AmqpFixedWidthType):
+class AmqpUnsignedByte(_AmqpFixedWidthType):
+    def __init__(self):
+        super().__init__("ubyte", int, 0x50, "!B")
+
+class AmqpUnsignedShort(_AmqpFixedWidthType):
+    def __init__(self):
+        super().__init__("ushort", int, 0x60, "!H")
+
+class AmqpUnsignedInt(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("uint", int, 0x70, "!I")
 
@@ -122,7 +130,7 @@ class _AmqpUnsignedInt(_AmqpFixedWidthType):
 
         return super().parse_value(buff, offset, format_code)
 
-class _AmqpUnsignedLong(_AmqpFixedWidthType):
+class AmqpUnsignedLong(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("ulong", int, 0x80, "!Q")
 
@@ -138,7 +146,15 @@ class _AmqpUnsignedLong(_AmqpFixedWidthType):
 
         return super().parse_value(buff, offset, format_code)
 
-class _AmqpInt(_AmqpFixedWidthType):
+class AmqpByte(_AmqpFixedWidthType):
+    def __init__(self):
+        super().__init__("byte", int, 0x51, "!b")
+
+class AmqpShort(_AmqpFixedWidthType):
+    def __init__(self):
+        super().__init__("short", int, 0x61, "!h")
+
+class AmqpInt(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("int", int, 0x71, "!i")
 
@@ -153,7 +169,7 @@ class _AmqpInt(_AmqpFixedWidthType):
 
         return super().parse_value(buff, offset, format_code)
 
-class _AmqpLong(_AmqpFixedWidthType):
+class AmqpLong(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("long", int, 0x81, "!q")
 
@@ -168,7 +184,15 @@ class _AmqpLong(_AmqpFixedWidthType):
 
         return super().parse_value(buff, offset, format_code)
 
-class _AmqpChar(_AmqpFixedWidthType):
+class AmqpFloat(_AmqpFixedWidthType):
+    def __init__(self):
+        super().__init__("float", float, 0x72, "!f")
+
+class AmqpDouble(_AmqpFixedWidthType):
+    def __init__(self):
+        super().__init__("double", float, 0x82, "!d")
+
+class AmqpChar(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("char", str, 0x73, "!4s")
 
@@ -180,7 +204,11 @@ class _AmqpChar(_AmqpFixedWidthType):
         offset, value = super().parse_value(buff, offset, format_code)
         return offset, value.decode("utf-32-be")
 
-class _AmqpTimestamp(_AmqpFixedWidthType):
+class AmqpUuid(_AmqpFixedWidthType):
+    def __init__(self):
+        super().__init__("uuid", bytes, 0x98, "!16s")
+
+class AmqpTimestamp(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("timestamp", float, 0x83, "!q")
 
@@ -241,11 +269,11 @@ class _AmqpVariableWidthType(_AmqpDataType):
 
         return end, value
 
-class _AmqpBinary(_AmqpVariableWidthType):
+class AmqpBinary(_AmqpVariableWidthType):
     def __init__(self):
         super().__init__("binary", bytes, 0xa0, 0xb0)
 
-class _AmqpString(_AmqpVariableWidthType):
+class AmqpString(_AmqpVariableWidthType):
     def __init__(self):
         super().__init__("string", str, 0xa1, 0xb1)
 
@@ -255,7 +283,7 @@ class _AmqpString(_AmqpVariableWidthType):
     def decode(self, octets):
         return bytes(octets).decode("utf-8")
 
-class _AmqpSymbol(_AmqpVariableWidthType):
+class AmqpSymbol(_AmqpVariableWidthType):
     def __init__(self):
         super().__init__("symbol", str, 0xa3, 0xb3)
 
@@ -340,11 +368,11 @@ class _AmqpCompoundType(_AmqpCollection):
 
         return offset, value
 
-class _AmqpList(_AmqpCompoundType):
+class AmqpList(_AmqpCompoundType):
     def __init__(self):
         super().__init__("list", list, 0xc0, 0xd0)
 
-class _AmqpMap(_AmqpCompoundType):
+class AmqpMap(_AmqpCompoundType):
     def __init__(self):
         super().__init__("map", dict, 0xc1, 0xd1)
 
@@ -365,7 +393,7 @@ class _AmqpMap(_AmqpCompoundType):
 
         return offset, pairs
 
-class _AmqpArray(_AmqpCollection):
+class AmqpArray(_AmqpCollection):
     def __init__(self):
         super().__init__("array", list, 0xf0, 0xe0)
 
@@ -418,33 +446,33 @@ class _AmqpArray(_AmqpCollection):
 
         return offset, value
 
-amqp_null = _AmqpNull()
-amqp_boolean = _AmqpBoolean()
+amqp_null = AmqpNull()
+amqp_boolean = AmqpBoolean()
 
-amqp_ubyte = _AmqpFixedWidthType("ubyte", int, 0x50, "!B")
-amqp_ushort = _AmqpFixedWidthType("ushort", int, 0x60, "!H")
-amqp_uint = _AmqpUnsignedInt()
-amqp_ulong = _AmqpUnsignedLong()
+amqp_ubyte = AmqpUnsignedByte()
+amqp_ushort = AmqpUnsignedShort()
+amqp_uint = AmqpUnsignedInt()
+amqp_ulong = AmqpUnsignedLong()
 
-amqp_byte = _AmqpFixedWidthType("byte", int, 0x51, "!b")
-amqp_short = _AmqpFixedWidthType("short", int, 0x61, "!h")
-amqp_int = _AmqpInt()
-amqp_long = _AmqpLong()
+amqp_byte = AmqpByte()
+amqp_short = AmqpShort()
+amqp_int = AmqpInt()
+amqp_long = AmqpLong()
 
-amqp_float =_AmqpFixedWidthType("float", float, 0x72, "!f")
-amqp_double = _AmqpFixedWidthType("double", float, 0x82, "!d")
+amqp_float = AmqpFloat()
+amqp_double = AmqpDouble()
 
-amqp_char = _AmqpChar()
-amqp_timestamp = _AmqpTimestamp()
-amqp_uuid = _AmqpFixedWidthType("uuid", bytes, 0x98, "!16s")
+amqp_char = AmqpChar()
+amqp_timestamp = AmqpTimestamp()
+amqp_uuid = AmqpUuid()
 
-amqp_binary = _AmqpBinary()
-amqp_string = _AmqpString()
-amqp_symbol = _AmqpSymbol()
+amqp_binary = AmqpBinary()
+amqp_string = AmqpString()
+amqp_symbol = AmqpSymbol()
 
-amqp_list = _AmqpList()
-amqp_map = _AmqpMap()
-amqp_array = _AmqpArray()
+amqp_list = AmqpList()
+amqp_map = AmqpMap()
+amqp_array = AmqpArray()
 
 _data_types_by_format_code = {
     0x40: amqp_null,
@@ -558,7 +586,7 @@ def _main():
 
     data = [
         (amqp_null, None),
-        (_AmqpNull(amqp_symbol), ("a", None)),
+        (AmqpNull(amqp_symbol), ("a", None)),
 
         (amqp_boolean, True),
         (amqp_boolean, False),
