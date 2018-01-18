@@ -1,19 +1,26 @@
+import sys as _sys
+
 try:
     import struct as _struct
 except ImportError:
     import ustruct as _struct
 
+_micropython = _sys.implementation.name == "micropython"
+
 _data_types_by_format_code = dict()
 _data_types_by_python_type = dict()
 
 class _Buffer(bytearray):
-    # XXX This doesn't work on micropython
-    def __init__(self):
-        super(_Buffer, self).__init__(128)
+    if _micropython:
+        def ensure(self, size):
+            raise NotImplementedError()
+    else:
+        def __init__(self):
+            super(_Buffer, self).__init__(128)
 
-    def ensure(self, size):
-        if len(self) < size:
-            self.extend([0] * max(size, len(self)))
+        def ensure(self, size):
+            if len(self) < size:
+                self.extend([0] * max(size, len(self)))
 
     def pack(self, format_string, offset, size, *values):
         self.ensure(offset + size)
