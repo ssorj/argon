@@ -6,6 +6,22 @@ except ImportError:
 _data_types_by_format_code = dict()
 _data_types_by_python_type = dict()
 
+class _Buffer(bytearray):
+    # XXX This doesn't work on micropython
+    def __init__(self):
+        super(_Buffer, self).__init__(128)
+
+    def ensure(self, size):
+        if len(self) < size:
+            self.extend([0] * max(size, len(self)))
+
+    def pack(self, format_string, offset, size, *values):
+        self.ensure(offset + size)
+
+        _struct.pack_into(format_string, self, offset, *values)
+
+        return offset + size
+
 class _AmqpDataType:
     def __init__(self, name, python_type, format_code, special_format_codes=()):
         assert name is not None
@@ -30,11 +46,13 @@ class _AmqpDataType:
         offset, format_code_offset = self.emit_constructor(buff, offset, None)
         offset, format_code = self.emit_value(buff, offset, value, element_type=element_type)
 
+        buff.ensure(offset + 1)
         _struct.pack_into("!B", buff, format_code_offset, format_code)
 
         return offset
 
     def emit_constructor(self, buff, offset, descriptor):
+        # buff.ensure(offset + 1) XXX
         format_code_offset = offset
         return offset + 1, format_code_offset
 
@@ -54,12 +72,10 @@ class _AmqpBoolean(_AmqpDataType):
 
     def emit(self, buff, offset, value, element_type=None):
         if value is True:
-            _struct.pack_into("!B", buff, offset, 0x41)
-            return offset + 1
+            return buff.pack("!B", offset, 1, 0x41)
 
         if value is False:
-            _struct.pack_into("!B", buff, offset, 0x42)
-            return offset + 1
+            return buff.pack("!B", offset, 1, 0x42)
 
         raise Exception()
 
@@ -67,12 +83,10 @@ class _AmqpBoolean(_AmqpDataType):
         assert format_code in (None, self.format_code)
 
         if value is True:
-            _struct.pack_into("!B", buff, offset, 0x01)
-            return offset + 1, self.format_code
+            return buff.pack("!B", offset, 1, 0x01), self.format_code
 
         if value is False:
-            _struct.pack_into("!B", buff, offset, 0x00)
-            return offset + 1, self.format_code
+            return buff.pack("!B", offset, 1, 0x00), self.format_code
 
         raise Exception()
 
@@ -98,8 +112,7 @@ class _AmqpFixedWidthType(_AmqpDataType):
     def emit_value(self, buff, offset, value, format_code=None, element_type=None):
         assert format_code in (None, self.format_code)
 
-        _struct.pack_into(self.format_string, buff, offset, value)
-        offset += self.format_size
+        offset = buff.pack(self.format_string, offset, self.format_size, value)
 
         return offset, self.format_code
 
@@ -117,12 +130,10 @@ class _AmqpUnsignedInt(_AmqpFixedWidthType):
 
     def emit(self, buff, offset, value, element_type=None):
         if value == 0:
-            _struct.pack_into("!B", buff, offset, 0x43)
-            return offset + 1
+            return buff.pack("!B", offset, 1, 0x43)
 
         if value < 256:
-            _struct.pack_into("!BB", buff, offset, 0x52, value)
-            return offset + 2
+            return buff.pack("!BB", offset, 2, 0x52, value)
 
         return super().emit(buff, offset, value)
 
@@ -142,12 +153,10 @@ class _AmqpUnsignedLong(_AmqpFixedWidthType):
 
     def emit(self, buff, offset, value, element_type=None):
         if value == 0:
-            _struct.pack_into("!B", buff, offset, 0x44)
-            return offset + 1
+            return buff.pack("!B", offset, 1, 0x44)
 
         if value < 256:
-            _struct.pack_into("!BB", buff, offset, 0x53, value)
-            return offset + 2
+            return buff.pack("!BB", offset, 2, 0x53, value)
 
         return super().emit(buff, offset, value, element_type)
 
@@ -167,8 +176,7 @@ class _AmqpInt(_AmqpFixedWidthType):
 
     def emit(self, buff, offset, value, element_type=None):
         if value >= -128 and value <= 127:
-            _struct.pack_into("!Bb", buff, offset, 0x54, value)
-            return offset + 2
+            return buff.pack("!Bb", offset, 2, 0x54, value)
 
         return super().emit(buff, offset, value, element_type)
 
@@ -185,8 +193,7 @@ class _AmqpLong(_AmqpFixedWidthType):
 
     def emit(self, buff, offset, value, element_type=None):
         if value >= -128 and value <= 127:
-            _struct.pack_into("!Bb", buff, offset, 0x55, value)
-            return offset + 2
+            return buff.pack("!Bb", offset, 2, 0x55, value)
 
         return super().emit(buff, offset, value, element_type)
 
@@ -248,12 +255,9 @@ class _AmqpVariableWidthType(_AmqpDataType):
 
         if format_code == self.short_format_code:
             assert size < 256
-
-            _struct.pack_into("!B", buff, offset, size)
-            offset += 1
+            offset = buff.pack("!B", offset, 1, size)
         else:
-            _struct.pack_into("!I", buff, offset, size)
-            offset += 4
+            offset = buff.pack("!I", offset, 4, size)
 
         end = offset + size
         buff[offset:end] = octets
@@ -316,11 +320,9 @@ class _AmqpCollection(_AmqpDataType):
         if format_code == self.short_format_code:
             assert size < 256 and count < 256
 
-            _struct.pack_into("!BB", buff, offset, size, count)
-            offset += 2
+            offset = buff.pack("!BB", offset, 2, size, count)
         else:
-            _struct.pack_into("!II", buff, offset, size, count)
-            offset += 8
+            offset = buff.pack("!II", offset, 8, size, count)
 
         return offset, format_code
 
@@ -341,7 +343,7 @@ class _AmqpCompoundType(_AmqpCollection):
         super().__init__(name, python_type, short_format_code, long_format_code)
 
     def encode(self, value):
-        buff = memoryview(bytearray(10000)) # XXX buffers
+        buff = _Buffer()
         offset = 0
 
         for item in value:
@@ -354,7 +356,6 @@ class _AmqpCompoundType(_AmqpCollection):
 
         for i in range(count):
             offset, value[i] = parse_data(buff, offset)
-            print(i, offset, count)
 
         return offset, value
 
@@ -405,7 +406,7 @@ class _AmqpArray(_AmqpCollection):
         super().__init__("array", list, 0xf0, 0xe0)
 
     def encode(self, value, element_type):
-        buff = memoryview(bytearray(100000)) # XXX buffers
+        buff = _Buffer()
         offset = 0
 
         for elem in value:
@@ -632,47 +633,48 @@ def _main():
         ((amqp_array, amqp_map), [{"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}]),
     ]
 
-    debug = True
+    debug = False
 
-    buff = memoryview(bytearray(10000)) # XXX buffers
+    buff = _Buffer()
     offset = 0
     output_hexes = list()
 
-    for type_, input_value in data:
-        if debug:
-            print("Emitting {} {}".format(type_, input_value))
+    for i in range(10000):
+        for type_, input_value in data:
+            if debug:
+                print("Emitting {} {}".format(type_, input_value))
 
-        start = offset
+            start = offset
 
-        if type(type_) is tuple:
-            type_, element_type = type_
-            offset = type_.emit(buff, offset, input_value, element_type=element_type)
-        else:
-            offset = type_.emit(buff, offset, input_value)
+            if type(type_) is tuple:
+                type_, element_type = type_
+                offset = type_.emit(buff, offset, input_value, element_type=element_type)
+            else:
+                offset = type_.emit(buff, offset, input_value)
 
-        hex_ = _hex(buff[start:offset])
-        output_hexes.append(hex_)
+            hex_ = _hex(buff[start:offset])
+            output_hexes.append(hex_)
 
-        if debug:
-            print("Emitted {}".format(hex_))
+            if debug:
+                print("Emitted {}".format(hex_))
 
-    offset = 0
-    output_values = list()
+        offset = 0
+        output_values = list()
 
-    for type_, input_value in data:
-        if debug:
-            lookahead = _hex(buff[offset:offset + 10])
-            print("Parsing {}... for {} {}".format(lookahead, type_, input_value))
+        for type_, input_value in data:
+            if debug:
+                lookahead = _hex(buff[offset:offset + 10])
+                print("Parsing {}... for {} {}".format(lookahead, type_, input_value))
 
-        start = offset
-        offset, value = parse_data(buff, offset)
+            start = offset
+            offset, value = parse_data(buff, offset)
 
-        if debug:
-            print("Parsed {}".format(_hex(buff[start:offset])))
+            if debug:
+                print("Parsed {}".format(_hex(buff[start:offset])))
 
-        assert value == input_value, "Expected {} but got {}".format(input_value, value)
+            assert value == input_value, "Expected {} but got {}".format(input_value, value)
 
-        output_values.append(value)
+            output_values.append(value)
 
     row = "{:5} {:17} {:>22} {:>22} {}"
 
