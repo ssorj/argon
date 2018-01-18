@@ -17,7 +17,7 @@
 # under the License.
 #
 
-from argon.common import _Buffer, _struct
+from argon.common import _Buffer, _struct, _hex, _uuid_bytes
 
 _data_types_by_format_code = dict()
 _data_types_by_python_type = dict()
@@ -509,36 +509,6 @@ def parse_data(buff, offset):
     data_type = get_data_type_for_format_code(format_code)
 
     return data_type.parse_value(buff, offset, format_code)
-
-def _hex(buff):
-    try:
-        import binascii
-    except ImportError:
-        import ubinascii as binascii
-
-    return binascii.hexlify(buff)
-
-def _uuid_bytes():
-    try:
-        import utime as time
-    except ImportError:
-        import time
-
-    try:
-        import urandom as random
-    except ImportError:
-        import random
-
-    random.seed(round(time.time() * 1000))
-
-    values = (
-        random.getrandbits(32),
-        random.getrandbits(32),
-        random.getrandbits(32),
-        random.getrandbits(32),
-    )
-
-    return _struct.pack("IIII", *values)
 
 def _main():
     try:

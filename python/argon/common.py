@@ -80,3 +80,33 @@ else:
             values = _struct.unpack_from(format_string, self, offset)
 
             return (offset + size,) + values
+
+def _hex(buff):
+    try:
+        import binascii
+    except ImportError:
+        import ubinascii as binascii
+
+    return binascii.hexlify(buff)
+
+def _uuid_bytes():
+    try:
+        import utime as time
+    except ImportError:
+        import time
+
+    try:
+        import urandom as random
+    except ImportError:
+        import random
+
+    random.seed(round(time.time() * 1000))
+
+    values = (
+        random.getrandbits(32),
+        random.getrandbits(32),
+        random.getrandbits(32),
+        random.getrandbits(32),
+    )
+
+    return _struct.pack("IIII", *values)
