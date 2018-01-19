@@ -311,15 +311,6 @@ class _AmqpCollection(_AmqpDataType):
         self.short_format_code = short_format_code
         self.long_format_code = long_format_code
 
-    def emit_size_and_count(self, buff, offset, size, count):
-        if size < 256 and count < 256:
-            return buff.pack(offset, 2, "!BB", size, count), self.short_format_code
-
-        return self.emit_size_and_count_long(buff, offset, size, count)
-
-    def emit_size_and_count_long(self, buff, offset, size, count):
-        return buff.pack(offset, 8, "!II", size, count), self.long_format_code
-
     def parse_size_and_count(self, buff, offset, format_code):
         assert format_code in (self.short_format_code, self.long_format_code)
 
@@ -402,14 +393,13 @@ class AmqpArray(_AmqpCollection):
     def __repr__(self):
         return "{}<{}>".format(self.name, self.element_type)
 
-    def encode(self, value):
-        buff = _Buffer()
-        offset = 0
+    def encode_into(self, buff, offset, value):
+        start = offset
 
         for elem in value:
             offset, format_code = self.element_type.emit_value_long(buff, offset, elem)
 
-        return buff[:offset], offset, len(value), format_code
+        return offset, offset - start, len(value)
 
     def decode_from(self, buff, offset, size, count, element_type, element_format_code):
         value = [None] * count
@@ -419,9 +409,6 @@ class AmqpArray(_AmqpCollection):
 
         return offset, value
 
-    def emit_value(self, buff, offset, value):
-        return self.emit_value_long(buff, offset, value)
-
     def emit_value_long(self, buff, offset, value):
         assert self.element_type is not None
 
@@ -430,15 +417,16 @@ class AmqpArray(_AmqpCollection):
         if self.descriptor_type is not None:
             descriptor, value = value
 
-        octets, size, count, element_format_code = self.encode(value)
-        offset, format_code = self.emit_size_and_count_long(buff, offset, size, count)
+        size_and_count_offset = offset
+        offset += 8
 
         offset, element_format_code_offset = self.element_type.emit_constructor(buff, offset, descriptor)
-        buff.pack(element_format_code_offset, 1, "!B", element_format_code)
+        buff.pack(element_format_code_offset, 1, "!B", self.element_type.format_code)
 
-        offset = buff.write(offset, octets)
+        offset, size, count = self.encode_into(buff, offset, value)
+        buff.pack(size_and_count_offset, 8, "!II", size, count)
 
-        return offset, format_code
+        return offset, self.long_format_code
 
     def parse_value(self, buff, offset, format_code):
         offset, size, count = self.parse_size_and_count(buff, offset, format_code)
