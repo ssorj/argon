@@ -28,7 +28,7 @@ try:
     from collections import namedtuple as _namedtuple
 except ImportError:
     from ucollections import namedtuple as _namedtuple
-    
+
 _micropython = _sys.implementation.name == "micropython"
 
 if _micropython:
@@ -40,6 +40,14 @@ if _micropython:
             if len(self.octets) < size:
                 new_size = max(size, len(self.octets))
                 self.octets = self.octets + bytearray([0] * new_size)
+
+        def write(self, offset, octets):
+            end = offset + len(octets)
+
+            self.ensure(end)
+            self.octets[offset:end] = octets
+
+            return end
 
         def pack(self, offset, size, format_string, *values):
             self.ensure(offset + size)
@@ -71,6 +79,14 @@ else:
         def ensure(self, size):
             if len(self) < size:
                 self.extend([0] * max(size, len(self)))
+
+        def write(self, offset, octets):
+            end = offset + len(octets)
+
+            self.ensure(end)
+            self[offset:end] = octets
+
+            return end
 
         def pack(self, offset, size, format_string, *values):
             self.ensure(offset + size)
