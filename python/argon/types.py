@@ -58,12 +58,15 @@ class _AmqpDataType:
 
         return offset, format_code_offset
 
+    def emit_value(self, buff, offset, value):
+        return self.emit_value_long(buff, offset, value)
+
+    def emit_value_long(self, buff, offset, value):
+        raise NotImplementedError()
+
 class AmqpNull(_AmqpDataType):
     def __init__(self, descriptor_type=None):
         super().__init__("null", type(None), 0x40, descriptor_type=descriptor_type)
-
-    def emit_value(self, buff, offset, value):
-        return self.emit_value_long(buff, offset, value)
 
     def emit_value_long(self, buff, offset, value):
         return offset, self.format_code
@@ -101,9 +104,6 @@ class _AmqpFixedWidthType(_AmqpDataType):
 
         self.format_string = format_string
         self.format_size = _struct.calcsize(self.format_string)
-
-    def emit_value(self, buff, offset, value):
-        return self.emit_value_long(buff, offset, value)
 
     def emit_value_long(self, buff, offset, value):
         offset = buff.pack(offset, self.format_size, self.format_string, value)
@@ -204,7 +204,7 @@ class AmqpChar(_AmqpFixedWidthType):
 
     def emit_value_long(self, buff, offset, value):
         value = value.encode("utf-32-be")
-        return super().emit_value(buff, offset, value)
+        return super().emit_value_long(buff, offset, value)
 
     def parse_value(self, buff, offset, format_code):
         offset, value = super().parse_value(buff, offset, format_code)
@@ -339,10 +339,9 @@ class _AmqpCompoundType(_AmqpCollection):
         buff = _Buffer()
         offset = 0
 
-        for item in value:
-            offset = emit_value(buff, offset, item)
+        offset, count = self.encode_into(buff, offset, value)
 
-        return buff[:offset], len(value)
+        return buff[:offset], count
 
     def encode_into(self, buff, offset, value):
         for item in value:
@@ -359,17 +358,6 @@ class _AmqpCompoundType(_AmqpCollection):
             offset, value[i] = parse_data(buff, offset)
 
         return offset, value
-
-    def emit_value(self, buff, offset, value):
-        return self.emit_value_long(buff, offset, value)
-
-        octets, count = self.encode(value)
-        size = len(octets)
-
-        offset, format_code = self.emit_size_and_count(buff, offset, size, count)
-        offset = buff.write(offset, octets)
-
-        return offset, format_code
 
     def emit_value_long(self, buff, offset, value):
         octets, count = self.encode(value)
@@ -394,13 +382,13 @@ class AmqpMap(_AmqpCompoundType):
     def __init__(self):
         super().__init__("map", dict, 0xc1, 0xd1)
 
-    def encode(self, value):
+    def encode_into(self, buff, offset, value):
         elems = list()
 
         for item in value.items():
             elems.extend(item)
 
-        return super().encode(elems)
+        return super().encode_into(buff, offset, elems)
 
     def decode_from(self, buff, offset, size, count):
         offset, elems = super().decode_from(buff, offset, size, count)
