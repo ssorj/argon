@@ -323,15 +323,10 @@ class _AmqpCompoundType(_AmqpCollection):
         buff = _Buffer()
         offset = 0
 
-        offset = self.encode_into(buff, offset, value)
-
-        return buff[:offset], offset, len(value)
-
-    def encode_into(self, buff, offset, value):
         for item in value:
             offset = emit_value(buff, offset, item)
 
-        return offset
+        return buff[:offset], offset, len(value)
 
     def decode_from(self, buff, offset, size, count):
         assert count < 1000, count # XXX
