@@ -31,76 +31,62 @@ except ImportError:
 
 _micropython = _sys.implementation.name == "micropython"
 
-if _micropython:
-    class _Buffer:
-        def __init__(self):
-            self.octets = bytearray(256)
+class _Buffer:
+    def __init__(self):
+        self.octets = bytearray(256)
+        self.view = memoryview(self.octets)
 
-        def ensure(self, size):
-            if len(self.octets) < size:
-                new_size = max(size, 2 * len(self.octets))
+    def ensure(self, size):
+        if len(self.octets) < size:
+            new_size = max(size, 2 * len(self.octets))
+
+            # XXX
+            if _micropython:
                 self.octets = self.octets + bytearray([0] * new_size)
+            else:
+                self.view.release()
+                self.octets.extend([0] * max(size, 2 * len(self.octets)))
+                self.view = memoryview(self.octets)
 
-        def write(self, offset, octets):
-            end = offset + len(octets)
+    if _micropython:
+        def read(self, offset, size):
+            end = offset + size
+            return end, self.octets[offset:end]
+    else:
+        def read(self, offset, size):
+            end = offset + size
+            return end, self.view[offset:end]
 
-            self.ensure(end)
-            self.octets[offset:end] = octets
+    def write(self, offset, octets):
+        end = offset + len(octets)
 
-            return end
+        self.ensure(end)
+        self.octets[offset:end] = octets
 
-        def pack(self, offset, size, format_string, *values):
-            self.ensure(offset + size)
+        return end
 
-            _struct.pack_into(format_string, self.octets, offset, *values)
+    def pack(self, offset, size, format_string, *values):
+        self.ensure(offset + size)
 
-            return offset + size
+        _struct.pack_into(format_string, self.octets, offset, *values)
 
-        def unpack(self, offset, size, format_string):
-            assert len(self) > offset + size
+        return offset + size
 
-            values = _struct.unpack_from(format_string, self.octets, offset)
+    def unpack(self, offset, size, format_string):
+        assert len(self) > offset + size
 
-            return (offset + size,) + values
+        values = _struct.unpack_from(format_string, self.octets, offset)
 
-        def __getitem__(self, index):
-            return self.octets[index]
+        return (offset + size,) + values
 
-        def __setitem__(self, index, value):
-            self.octets[index] = value
+    def __getitem__(self, index):
+        return self.view[index]
 
-        def __len__(self):
-            return len(self.octets)
-else:
-    class _Buffer(bytearray):
-        def __init__(self):
-            super().__init__(256)
+    def __setitem__(self, index, value):
+        self.octets[index] = value
 
-        def ensure(self, size):
-            if len(self) < size:
-                self.extend([0] * max(size, 2 * len(self)))
-
-        def write(self, offset, octets):
-            end = offset + len(octets)
-
-            self.ensure(end)
-            self[offset:end] = octets
-
-            return end
-
-        def pack(self, offset, size, format_string, *values):
-            self.ensure(offset + size)
-
-            _struct.pack_into(format_string, self, offset, *values)
-
-            return offset + size
-
-        def unpack(self, offset, size, format_string):
-            assert len(self) > offset + size
-
-            values = _struct.unpack_from(format_string, self, offset)
-
-            return (offset + size,) + values
+    def __len__(self):
+        return len(self.octets)
 
 def _hex(buff):
     try:

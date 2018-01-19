@@ -237,7 +237,7 @@ class _AmqpVariableWidthType(_AmqpDataType):
         return value
 
     def decode(self, octets):
-        return octets
+        return bytes(octets)
 
     def emit_value(self, buff, offset, value):
         if len(value) < 256:
@@ -269,10 +269,10 @@ class _AmqpVariableWidthType(_AmqpDataType):
         else:
             offset, size = buff.unpack(offset, 4, "!I")
 
-        end = offset + size
-        value = self.decode(buff[offset:end]) # XXX memoryview
+        offset, octets = buff.read(offset, size)
+        value = self.decode(octets)
 
-        return end, value
+        return offset, value
 
 class AmqpBinary(_AmqpVariableWidthType):
     def __init__(self):
@@ -330,7 +330,7 @@ class _AmqpCompoundType(_AmqpCollection):
         start = offset
 
         for item in value:
-            offset = emit_value(buff, offset, item)
+            offset = emit_data(buff, offset, item)
 
         return offset, offset - start, len(value)
 
@@ -537,7 +537,7 @@ def _get_data_type_for_python_type(python_type):
 def get_data_type(value):
     return _get_data_type_for_python_type(type(value))
 
-def emit_value(buff, offset, value):
+def emit_data(buff, offset, value):
     data_type = get_data_type(value)
     return data_type.emit(buff, offset, value)
 
@@ -646,7 +646,7 @@ def _main():
         (AmqpArray(AmqpArray(amqp_boolean)), [[True, False], [True, False], [True, False]]),
     ]
 
-    debug = True
+    debug = False
 
     buff = _Buffer()
     offset = 0
