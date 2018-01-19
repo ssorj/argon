@@ -384,6 +384,9 @@ class AmqpArray(_AmqpCollection):
 
         self.element_type = element_type
 
+    def __repr__(self):
+        return "{}<{}>".format(self.name, self.element_type)
+
     def encode(self, value):
         buff = _Buffer()
         offset = 0
@@ -697,7 +700,7 @@ def _main():
 
             output_values.append(value)
 
-    row = "{:4} {:18} {:>22} {:>22} {}"
+    row = "{:4} {:22} {:>22} {:>22} {}"
 
     for i, item in enumerate(data):
         type_, input_value = item
