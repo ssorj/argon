@@ -335,19 +335,13 @@ class _AmqpCompoundType(_AmqpCollection):
     def __init__(self, name, python_type, short_format_code, long_format_code):
         super().__init__(name, python_type, short_format_code, long_format_code)
 
-    def encode(self, value):
-        buff = _Buffer()
-        offset = 0
-
-        offset, count = self.encode_into(buff, offset, value)
-
-        return buff[:offset], count
-
     def encode_into(self, buff, offset, value):
+        start = offset
+
         for item in value:
             offset = emit_value(buff, offset, item)
 
-        return offset, len(value)
+        return offset, offset - start, len(value)
 
     def decode_from(self, buff, offset, size, count):
         assert count < 1000, count # XXX This is incorrect, but it catches some codec bugs
@@ -360,11 +354,11 @@ class _AmqpCompoundType(_AmqpCollection):
         return offset, value
 
     def emit_value_long(self, buff, offset, value):
-        octets, count = self.encode(value)
-        size = len(octets)
+        size_and_count_offset = offset
+        offset += 8
 
-        offset, format_code = self.emit_size_and_count_long(buff, offset, size, count)
-        offset = buff.write(offset, octets)
+        offset, size, count = self.encode_into(buff, offset, value)
+        buff.pack(size_and_count_offset, 8, "!II", size, count)
 
         return offset, self.long_format_code
 
