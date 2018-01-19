@@ -79,13 +79,18 @@ class AmqpBoolean(_AmqpDataType):
         raise Exception()
 
     def emit_value(self, buff, offset, value):
-        return buff.pack(offset, 1, "!?", value), self.format_code
+        if value is True: return buff.pack(offset, 1, "!B", 0x01), self.format_code
+        if value is False: return buff.pack(offset, 1, "!B", 0x00), self.format_code
+
+        raise Exception()
 
     def parse_value(self, buff, offset, format_code):
         if format_code == 0x41: return offset, True
         if format_code == 0x42: return offset, False
 
-        return buff.unpack(offset, 1, "!?")
+        offset, value = buff.unpack(offset, 1, "!B")
+
+        return offset, value == 0x01
 
 class _AmqpFixedWidthType(_AmqpDataType):
     def __init__(self, name, python_type, format_code, format_string):
