@@ -38,7 +38,7 @@ if _micropython:
 
         def ensure(self, size):
             if len(self.octets) < size:
-                new_size = max(size, len(self.octets))
+                new_size = max(size, 2 * len(self.octets))
                 self.octets = self.octets + bytearray([0] * new_size)
 
         def write(self, offset, octets):
@@ -78,7 +78,7 @@ else:
 
         def ensure(self, size):
             if len(self) < size:
-                self.extend([0] * max(size, len(self)))
+                self.extend([0] * max(size, 2 * len(self)))
 
         def write(self, offset, octets):
             end = offset + len(octets)
