@@ -21,9 +21,9 @@ from argon.common import _Buffer, _struct
 from argon.types import *
 
 class _AmqpFrame:
-    def __init__(self, performative):
-        self.performative = performative
+    pass
 
+class AmqpOpenFrame(_AmqpFrame):
     def emit(self, buff, offset):
         start = offset
         
@@ -32,15 +32,11 @@ class _AmqpFrame:
 
         offset = buff.pack(offset, 4, "!BBH", 2, 0, 1)
         
-        performative = AmqpList(descriptor_type=amqp_ulong)
-        offset = performative.emit(buff, offset, (0 << 32 | 0x00000010, ["xxx"]))
+        performative = AmqpListType(UnsignedLong(0 << 32 | 0x00000010))
+        offset = performative.emit(buff, offset, ["xxx"])
 
         size = offset - start
 
         buff.pack(size_offset, 4, "!I", size)
 
         return offset
-
-class _OpenFrame(_AmqpFrame):
-    def __init__(self, size, data_offset):
-        pass

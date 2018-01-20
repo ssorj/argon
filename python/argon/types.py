@@ -20,7 +20,7 @@
 from argon.common import _Buffer, _struct, _hex, _namedtuple, _uuid_bytes
 
 class _AmqpDataType:
-    def __init__(self, name, python_type, format_code, descriptor_type=None):
+    def __init__(self, name, python_type, format_code, descriptor=None):
         assert name is not None
         assert python_type is not None
         assert format_code is not None
@@ -28,30 +28,25 @@ class _AmqpDataType:
         self.name = name
         self.python_type = python_type
         self.format_code = format_code
-        self.descriptor_type = descriptor_type
+        self.descriptor = descriptor
 
     def __repr__(self):
         return self.name
 
     def emit(self, buff, offset, value):
-        descriptor = None
-
-        if self.descriptor_type is not None:
-            descriptor, value = value
-
         assert isinstance(value, self.python_type)
 
-        offset, format_code_offset = self.emit_constructor(buff, offset, descriptor)
+        offset, format_code_offset = self.emit_constructor(buff, offset)
         offset, format_code = self.emit_value(buff, offset, value)
 
         buff.pack(format_code_offset, 1, "!B", format_code)
 
         return offset
 
-    def emit_constructor(self, buff, offset, descriptor):
-        if self.descriptor_type is not None:
+    def emit_constructor(self, buff, offset):
+        if self.descriptor is not None:
             offset = buff.pack(offset, 1, "!B", 0x00)
-            offset = self.descriptor_type.emit(buff, offset, descriptor)
+            offset = emit_data(buff, offset, self.descriptor)
 
         format_code_offset = offset # The format code is filled in later
         offset += 1
@@ -65,8 +60,8 @@ class _AmqpDataType:
         raise NotImplementedError()
 
 class AmqpNullType(_AmqpDataType):
-    def __init__(self, descriptor_type=None):
-        super().__init__("null", type(None), 0x40, descriptor_type=descriptor_type)
+    def __init__(self, descriptor=None):
+        super().__init__("null", type(None), 0x40, descriptor=descriptor)
 
     def emit_value_long(self, buff, offset, value):
         return offset, self.format_code
@@ -75,8 +70,8 @@ class AmqpNullType(_AmqpDataType):
         return offset, None
 
 class AmqpBooleanType(_AmqpDataType):
-    def __init__(self):
-        super().__init__("boolean", bool, 0x56)
+    def __init__(self, descriptor=None):
+        super().__init__("boolean", bool, 0x56, descriptor=descriptor)
 
     def emit_value(self, buff, offset, value):
         if value is True: return offset, 0x41
@@ -99,8 +94,8 @@ class AmqpBooleanType(_AmqpDataType):
         return offset, value == 0x01
 
 class _AmqpFixedWidthType(_AmqpDataType):
-    def __init__(self, name, python_type, format_code, format_string):
-        super().__init__(name, python_type, format_code)
+    def __init__(self, name, python_type, format_code, format_string, descriptor=None):
+        super().__init__(name, python_type, format_code, descriptor=descriptor)
 
         self.format_string = format_string
         self.format_size = _struct.calcsize(self.format_string)
@@ -113,16 +108,16 @@ class _AmqpFixedWidthType(_AmqpDataType):
         return buff.unpack(offset, self.format_size, self.format_string)
 
 class AmqpUnsignedByteType(_AmqpFixedWidthType):
-    def __init__(self):
-        super().__init__("ubyte", int, 0x50, "!B")
+    def __init__(self, descriptor=None):
+        super().__init__("ubyte", int, 0x50, "!B", descriptor=descriptor)
 
 class AmqpUnsignedShortType(_AmqpFixedWidthType):
-    def __init__(self):
-        super().__init__("ushort", int, 0x60, "!H")
+    def __init__(self, descriptor=None):
+        super().__init__("ushort", int, 0x60, "!H", descriptor=descriptor)
 
 class AmqpUnsignedIntType(_AmqpFixedWidthType):
-    def __init__(self):
-        super().__init__("uint", int, 0x70, "!I")
+    def __init__(self, descriptor=None):
+        super().__init__("uint", int, 0x70, "!I", descriptor=descriptor)
 
     def emit_value(self, buff, offset, value):
         if value == 0: return offset, 0x43
@@ -137,8 +132,8 @@ class AmqpUnsignedIntType(_AmqpFixedWidthType):
         return super().parse_value(buff, offset, format_code)
 
 class AmqpUnsignedLongType(_AmqpFixedWidthType):
-    def __init__(self):
-        super().__init__("ulong", int, 0x80, "!Q")
+    def __init__(self, descriptor=None):
+        super().__init__("ulong", int, 0x80, "!Q", descriptor=descriptor)
 
     def emit_value(self, buff, offset, value):
         if value == 0: return offset, 0x44
@@ -153,16 +148,16 @@ class AmqpUnsignedLongType(_AmqpFixedWidthType):
         return super().parse_value(buff, offset, format_code)
 
 class AmqpByteType(_AmqpFixedWidthType):
-    def __init__(self):
-        super().__init__("byte", int, 0x51, "!b")
+    def __init__(self, descriptor=None):
+        super().__init__("byte", int, 0x51, "!b", descriptor=descriptor)
 
 class AmqpShortType(_AmqpFixedWidthType):
-    def __init__(self):
-        super().__init__("short", int, 0x61, "!h")
+    def __init__(self, descriptor=None):
+        super().__init__("short", int, 0x61, "!h", descriptor=descriptor)
 
 class AmqpIntType(_AmqpFixedWidthType):
-    def __init__(self):
-        super().__init__("int", int, 0x71, "!i")
+    def __init__(self, descriptor=None):
+        super().__init__("int", int, 0x71, "!i", descriptor=descriptor)
 
     def emit_value(self, buff, offset, value):
         if value >= -128 and value <= 127:
@@ -176,8 +171,8 @@ class AmqpIntType(_AmqpFixedWidthType):
         return super().parse_value(buff, offset, format_code)
 
 class AmqpLongType(_AmqpFixedWidthType):
-    def __init__(self):
-        super().__init__("long", int, 0x81, "!q")
+    def __init__(self, descriptor=None):
+        super().__init__("long", int, 0x81, "!q", descriptor=descriptor)
 
     def emit_value(self, buff, offset, value):
         if value >= -128 and value <= 127:
@@ -191,16 +186,16 @@ class AmqpLongType(_AmqpFixedWidthType):
         return super().parse_value(buff, offset, format_code)
 
 class AmqpFloatType(_AmqpFixedWidthType):
-    def __init__(self):
-        super().__init__("float", float, 0x72, "!f")
+    def __init__(self, descriptor=None):
+        super().__init__("float", float, 0x72, "!f", descriptor=descriptor)
 
 class AmqpDoubleType(_AmqpFixedWidthType):
-    def __init__(self):
-        super().__init__("double", float, 0x82, "!d")
+    def __init__(self, descriptor=None):
+        super().__init__("double", float, 0x82, "!d", descriptor=descriptor)
 
 class AmqpCharType(_AmqpFixedWidthType):
-    def __init__(self):
-        super().__init__("char", str, 0x73, "!4s")
+    def __init__(self, descriptor=None):
+        super().__init__("char", str, 0x73, "!4s", descriptor=descriptor)
 
     def emit_value_long(self, buff, offset, value):
         value = value.encode("utf-32-be")
@@ -211,12 +206,12 @@ class AmqpCharType(_AmqpFixedWidthType):
         return offset, value.decode("utf-32-be")
 
 class AmqpUuidType(_AmqpFixedWidthType):
-    def __init__(self):
-        super().__init__("uuid", bytes, 0x98, "!16s")
+    def __init__(self, descriptor=None):
+        super().__init__("uuid", bytes, 0x98, "!16s", descriptor=descriptor)
 
 class AmqpTimestampType(_AmqpFixedWidthType):
-    def __init__(self):
-        super().__init__("timestamp", float, 0x83, "!q")
+    def __init__(self, descriptor=None):
+        super().__init__("timestamp", float, 0x83, "!q", descriptor=descriptor)
 
     def emit_value_long(self, buff, offset, value):
         value = int(round(value * 1000))
@@ -227,8 +222,8 @@ class AmqpTimestampType(_AmqpFixedWidthType):
         return offset, round(value / 1000, 3)
 
 class _AmqpVariableWidthType(_AmqpDataType):
-    def __init__(self, name, python_type, short_format_code, long_format_code):
-        super().__init__(name, python_type, long_format_code)
+    def __init__(self, name, python_type, short_format_code, long_format_code, descriptor=None):
+        super().__init__(name, python_type, long_format_code, descriptor=descriptor)
 
         self.short_format_code = short_format_code
         self.long_format_code = long_format_code
@@ -275,12 +270,12 @@ class _AmqpVariableWidthType(_AmqpDataType):
         return offset, value
 
 class AmqpBinaryType(_AmqpVariableWidthType):
-    def __init__(self):
-        super().__init__("binary", bytes, 0xa0, 0xb0)
+    def __init__(self, descriptor=None):
+        super().__init__("binary", bytes, 0xa0, 0xb0, descriptor=descriptor)
 
 class AmqpStringType(_AmqpVariableWidthType):
-    def __init__(self):
-        super().__init__("string", str, 0xa1, 0xb1)
+    def __init__(self, descriptor=None):
+        super().__init__("string", str, 0xa1, 0xb1, descriptor=descriptor)
 
     def encode(self, value):
         return value.encode("utf-8")
@@ -295,8 +290,8 @@ class AmqpStringType(_AmqpVariableWidthType):
         return self.emit_value_long(buff, offset, value)
 
 class AmqpSymbolType(_AmqpVariableWidthType):
-    def __init__(self):
-        super().__init__("symbol", str, 0xa3, 0xb3)
+    def __init__(self, descriptor=None):
+        super().__init__("symbol", str, 0xa3, 0xb3, descriptor=descriptor)
 
     def encode(self, value):
         return value.encode("ascii")
@@ -305,8 +300,8 @@ class AmqpSymbolType(_AmqpVariableWidthType):
         return bytes(octets).decode("ascii")
 
 class _AmqpCollectionType(_AmqpDataType):
-    def __init__(self, name, python_type, short_format_code, long_format_code, descriptor_type=None):
-        super().__init__(name, python_type, long_format_code, descriptor_type=descriptor_type)
+    def __init__(self, name, python_type, short_format_code, long_format_code, descriptor=None):
+        super().__init__(name, python_type, long_format_code, descriptor=descriptor)
 
         self.short_format_code = short_format_code
         self.long_format_code = long_format_code
@@ -323,8 +318,8 @@ class _AmqpCollectionType(_AmqpDataType):
         raise Exception()
 
 class _AmqpCompoundType(_AmqpCollectionType):
-    def __init__(self, name, python_type, short_format_code, long_format_code, descriptor_type=None):
-        super().__init__(name, python_type, short_format_code, long_format_code, descriptor_type=descriptor_type)
+    def __init__(self, name, python_type, short_format_code, long_format_code, descriptor=None):
+        super().__init__(name, python_type, short_format_code, long_format_code, descriptor=descriptor)
 
     def encode_into(self, buff, offset, value):
         for item in value:
@@ -363,12 +358,12 @@ class _AmqpCompoundType(_AmqpCollectionType):
         return offset, value
 
 class AmqpListType(_AmqpCompoundType):
-    def __init__(self, descriptor_type=None):
-        super().__init__("list", list, 0xc0, 0xd0, descriptor_type=descriptor_type)
+    def __init__(self, descriptor=None):
+        super().__init__("list", list, 0xc0, 0xd0, descriptor=descriptor)
 
 class AmqpMapType(_AmqpCompoundType):
-    def __init__(self):
-        super().__init__("map", dict, 0xc1, 0xd1)
+    def __init__(self, descriptor=None):
+        super().__init__("map", dict, 0xc1, 0xd1, descriptor=descriptor)
 
     def encode_into(self, buff, offset, value):
         elems = list()
@@ -388,8 +383,8 @@ class AmqpMapType(_AmqpCompoundType):
         return offset, pairs
 
 class AmqpArrayType(_AmqpCollectionType):
-    def __init__(self, element_type):
-        super().__init__("array", list, 0xf0, 0xe0)
+    def __init__(self, element_type, descriptor=None):
+        super().__init__("array", list, 0xf0, 0xe0, descriptor=descriptor)
 
         self.element_type = element_type
 
@@ -413,18 +408,13 @@ class AmqpArrayType(_AmqpCollectionType):
     def emit_value_long(self, buff, offset, value):
         assert self.element_type is not None
 
-        descriptor = None
-
-        if self.descriptor_type is not None:
-            descriptor, value = value
-
         size_offset = offset
         offset += 4
 
         count_offset = offset
         offset += 4
 
-        offset, element_format_code_offset = self.element_type.emit_constructor(buff, offset, descriptor)
+        offset, element_format_code_offset = self.element_type.emit_constructor(buff, offset)
         buff.pack(element_format_code_offset, 1, "!B", self.element_type.format_code)
 
         offset, count = self.encode_into(buff, offset, value)
@@ -516,7 +506,16 @@ def _get_data_type_for_format_code(format_code):
     except KeyError:
         raise Exception("No data type for format code 0x{:02X}".format(format_code))
 
+class UnsignedLong(int):
+    _amqp_type = amqp_ulong_type
+
+class Symbol(str):
+    _amqp_type = amqp_symbol_type
+
 def _get_data_type_for_python_type(python_type):
+    if hasattr(python_type, "_amqp_type"):
+        return python_type._amqp_type
+
     if issubclass(python_type, int):
         return amqp_long_type
 
@@ -551,12 +550,7 @@ def parse_data(buff, offset):
     offset, format_code, descriptor = _parse_constructor(buff, offset)
     data_type = _get_data_type_for_format_code(format_code)
 
-    offset, value = data_type.parse_value(buff, offset, format_code)
-
-    if descriptor is not None:
-        value = (descriptor, value)
-
-    return offset, value
+    return data_type.parse_value(buff, offset, format_code)
 
 def _parse_constructor(buff, offset):
     offset, format_code = buff.unpack(offset, 1, "!B")
@@ -584,7 +578,7 @@ def _main():
 
     data = [
         (amqp_null_type, None),
-        (AmqpNullType(amqp_symbol_type), ("a", None)),
+        (AmqpNullType(Symbol("a")), None),
 
         (amqp_boolean_type, True),
         (amqp_boolean_type, False),

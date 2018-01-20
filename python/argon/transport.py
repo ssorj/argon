@@ -4,7 +4,7 @@ import sys as _sys
 import time as _time
 
 from argon.common import _hex, _Buffer
-from argon.frames import _AmqpFrame
+from argon.frames import *
 
 def _main():
     address = "localhost", 5672
@@ -20,7 +20,7 @@ def _main():
 
         assert response == protocol_header
 
-        frame = _AmqpFrame(None)
+        frame = AmqpOpenFrame()
 
         buff = _Buffer()
         offset = 0
