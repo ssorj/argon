@@ -3,6 +3,9 @@ import struct as _struct
 import sys as _sys
 import time as _time
 
+from argon.common import _hex, _Buffer
+from argon.frames import _AmqpFrame
+
 def _main():
     address = "localhost", 5672
 
@@ -17,6 +20,25 @@ def _main():
 
         assert response == protocol_header
 
+        frame = _AmqpFrame(None)
+
+        buff = _Buffer()
+        offset = 0
+
+        offset = frame.emit(buff, offset)
+
+        open_ = buff[:offset]
+        
+        sock.sendall(open_)
+
+        print(111, _hex(open_))
+        
+        data = sock.recv(2048)
+        
+        print(_hex(data))
+        
+        #size = _struct.unpack_from("!I")
+        
         #sock.sendall(XXX)
 
         # data = sock.recv(...)

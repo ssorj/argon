@@ -24,15 +24,22 @@ class _AmqpFrame:
     def __init__(self, performative):
         self.performative = performative
 
-    def parse(buff):
-        pass
+    def emit(self, buff, offset):
+        start = offset
         
-    def emit(buff, channel, payload):
-        # Compute size
-        # doff = 0x02
-        # type = 0x00
-        # channel = 0000
-        pass
+        size_offset = offset
+        offset += 4
+
+        offset = buff.pack(offset, 4, "!BBH", 2, 0, 1)
+        
+        performative = AmqpList(descriptor_type=amqp_ulong)
+        offset = performative.emit(buff, offset, (0 << 32 | 0x00000010, ["xxx"]))
+
+        size = offset - start
+
+        buff.pack(size_offset, 4, "!I", size)
+
+        return offset
 
 class _OpenFrame(_AmqpFrame):
     def __init__(self, size, data_offset):

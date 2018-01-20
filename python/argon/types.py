@@ -305,8 +305,8 @@ class AmqpSymbol(_AmqpVariableWidthType):
         return bytes(octets).decode("ascii")
 
 class _AmqpCollection(_AmqpDataType):
-    def __init__(self, name, python_type, short_format_code, long_format_code):
-        super().__init__(name, python_type, long_format_code)
+    def __init__(self, name, python_type, short_format_code, long_format_code, descriptor_type=None):
+        super().__init__(name, python_type, long_format_code, descriptor_type=descriptor_type)
 
         self.short_format_code = short_format_code
         self.long_format_code = long_format_code
@@ -323,18 +323,16 @@ class _AmqpCollection(_AmqpDataType):
         raise Exception()
 
 class _AmqpCompoundType(_AmqpCollection):
-    def __init__(self, name, python_type, short_format_code, long_format_code):
-        super().__init__(name, python_type, short_format_code, long_format_code)
+    def __init__(self, name, python_type, short_format_code, long_format_code, descriptor_type=None):
+        super().__init__(name, python_type, short_format_code, long_format_code, descriptor_type=descriptor_type)
 
     def encode_into(self, buff, offset, value):
-        start = offset
-
         for item in value:
             offset = emit_data(buff, offset, item)
 
-        return offset, offset - start, len(value)
+        return offset, len(value)
 
-    def decode_from(self, buff, offset, size, count):
+    def decode_from(self, buff, offset, count):
         assert count < 1000, count # XXX This is incorrect, but it catches some codec bugs
 
         value = [None] * count
@@ -345,23 +343,29 @@ class _AmqpCompoundType(_AmqpCollection):
         return offset, value
 
     def emit_value_long(self, buff, offset, value):
-        size_and_count_offset = offset
-        offset += 8
+        size_offset = offset
+        offset += 4
 
-        offset, size, count = self.encode_into(buff, offset, value)
-        buff.pack(size_and_count_offset, 8, "!II", size, count)
+        count_offset = offset
+        offset += 4
+
+        offset, count = self.encode_into(buff, offset, value)
+
+        size = offset - count_offset
+
+        buff.pack(size_offset, 8, "!II", size, count)
 
         return offset, self.long_format_code
 
     def parse_value(self, buff, offset, format_code):
         offset, size, count = self.parse_size_and_count(buff, offset, format_code)
-        offset, value = self.decode_from(buff, offset, size, count)
+        offset, value = self.decode_from(buff, offset, count)
 
         return offset, value
 
 class AmqpList(_AmqpCompoundType):
-    def __init__(self):
-        super().__init__("list", list, 0xc0, 0xd0)
+    def __init__(self, descriptor_type=None):
+        super().__init__("list", list, 0xc0, 0xd0, descriptor_type=descriptor_type)
 
 class AmqpMap(_AmqpCompoundType):
     def __init__(self):
@@ -375,8 +379,8 @@ class AmqpMap(_AmqpCompoundType):
 
         return super().encode_into(buff, offset, elems)
 
-    def decode_from(self, buff, offset, size, count):
-        offset, elems = super().decode_from(buff, offset, size, count)
+    def decode_from(self, buff, offset, count):
+        offset, elems = super().decode_from(buff, offset, count)
         pairs = dict()
 
         for i in range(0, len(elems), 2):
