@@ -64,7 +64,7 @@ class _AmqpDataType:
     def emit_value_long(self, buff, offset, value):
         raise NotImplementedError()
 
-class AmqpNull(_AmqpDataType):
+class AmqpNullType(_AmqpDataType):
     def __init__(self, descriptor_type=None):
         super().__init__("null", type(None), 0x40, descriptor_type=descriptor_type)
 
@@ -74,7 +74,7 @@ class AmqpNull(_AmqpDataType):
     def parse_value(self, buff, offset, format_code):
         return offset, None
 
-class AmqpBoolean(_AmqpDataType):
+class AmqpBooleanType(_AmqpDataType):
     def __init__(self):
         super().__init__("boolean", bool, 0x56)
 
@@ -112,15 +112,15 @@ class _AmqpFixedWidthType(_AmqpDataType):
     def parse_value(self, buff, offset, format_code):
         return buff.unpack(offset, self.format_size, self.format_string)
 
-class AmqpUnsignedByte(_AmqpFixedWidthType):
+class AmqpUnsignedByteType(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("ubyte", int, 0x50, "!B")
 
-class AmqpUnsignedShort(_AmqpFixedWidthType):
+class AmqpUnsignedShortType(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("ushort", int, 0x60, "!H")
 
-class AmqpUnsignedInt(_AmqpFixedWidthType):
+class AmqpUnsignedIntType(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("uint", int, 0x70, "!I")
 
@@ -136,7 +136,7 @@ class AmqpUnsignedInt(_AmqpFixedWidthType):
 
         return super().parse_value(buff, offset, format_code)
 
-class AmqpUnsignedLong(_AmqpFixedWidthType):
+class AmqpUnsignedLongType(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("ulong", int, 0x80, "!Q")
 
@@ -152,15 +152,15 @@ class AmqpUnsignedLong(_AmqpFixedWidthType):
 
         return super().parse_value(buff, offset, format_code)
 
-class AmqpByte(_AmqpFixedWidthType):
+class AmqpByteType(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("byte", int, 0x51, "!b")
 
-class AmqpShort(_AmqpFixedWidthType):
+class AmqpShortType(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("short", int, 0x61, "!h")
 
-class AmqpInt(_AmqpFixedWidthType):
+class AmqpIntType(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("int", int, 0x71, "!i")
 
@@ -175,7 +175,7 @@ class AmqpInt(_AmqpFixedWidthType):
 
         return super().parse_value(buff, offset, format_code)
 
-class AmqpLong(_AmqpFixedWidthType):
+class AmqpLongType(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("long", int, 0x81, "!q")
 
@@ -190,15 +190,15 @@ class AmqpLong(_AmqpFixedWidthType):
 
         return super().parse_value(buff, offset, format_code)
 
-class AmqpFloat(_AmqpFixedWidthType):
+class AmqpFloatType(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("float", float, 0x72, "!f")
 
-class AmqpDouble(_AmqpFixedWidthType):
+class AmqpDoubleType(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("double", float, 0x82, "!d")
 
-class AmqpChar(_AmqpFixedWidthType):
+class AmqpCharType(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("char", str, 0x73, "!4s")
 
@@ -210,11 +210,11 @@ class AmqpChar(_AmqpFixedWidthType):
         offset, value = super().parse_value(buff, offset, format_code)
         return offset, value.decode("utf-32-be")
 
-class AmqpUuid(_AmqpFixedWidthType):
+class AmqpUuidType(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("uuid", bytes, 0x98, "!16s")
 
-class AmqpTimestamp(_AmqpFixedWidthType):
+class AmqpTimestampType(_AmqpFixedWidthType):
     def __init__(self):
         super().__init__("timestamp", float, 0x83, "!q")
 
@@ -274,11 +274,11 @@ class _AmqpVariableWidthType(_AmqpDataType):
 
         return offset, value
 
-class AmqpBinary(_AmqpVariableWidthType):
+class AmqpBinaryType(_AmqpVariableWidthType):
     def __init__(self):
         super().__init__("binary", bytes, 0xa0, 0xb0)
 
-class AmqpString(_AmqpVariableWidthType):
+class AmqpStringType(_AmqpVariableWidthType):
     def __init__(self):
         super().__init__("string", str, 0xa1, 0xb1)
 
@@ -294,7 +294,7 @@ class AmqpString(_AmqpVariableWidthType):
 
         return self.emit_value_long(buff, offset, value)
 
-class AmqpSymbol(_AmqpVariableWidthType):
+class AmqpSymbolType(_AmqpVariableWidthType):
     def __init__(self):
         super().__init__("symbol", str, 0xa3, 0xb3)
 
@@ -304,7 +304,8 @@ class AmqpSymbol(_AmqpVariableWidthType):
     def decode(self, octets):
         return bytes(octets).decode("ascii")
 
-class _AmqpCollection(_AmqpDataType):
+# XXX Get rid of this
+class _AmqpCollectionType(_AmqpDataType):
     def __init__(self, name, python_type, short_format_code, long_format_code, descriptor_type=None):
         super().__init__(name, python_type, long_format_code, descriptor_type=descriptor_type)
 
@@ -322,7 +323,7 @@ class _AmqpCollection(_AmqpDataType):
 
         raise Exception()
 
-class _AmqpCompoundType(_AmqpCollection):
+class _AmqpCompoundType(_AmqpCollectionType):
     def __init__(self, name, python_type, short_format_code, long_format_code, descriptor_type=None):
         super().__init__(name, python_type, short_format_code, long_format_code, descriptor_type=descriptor_type)
 
@@ -363,11 +364,11 @@ class _AmqpCompoundType(_AmqpCollection):
 
         return offset, value
 
-class AmqpList(_AmqpCompoundType):
+class AmqpListType(_AmqpCompoundType):
     def __init__(self, descriptor_type=None):
         super().__init__("list", list, 0xc0, 0xd0, descriptor_type=descriptor_type)
 
-class AmqpMap(_AmqpCompoundType):
+class AmqpMapType(_AmqpCompoundType):
     def __init__(self):
         super().__init__("map", dict, 0xc1, 0xd1)
 
@@ -388,7 +389,7 @@ class AmqpMap(_AmqpCompoundType):
 
         return offset, pairs
 
-class AmqpArray(_AmqpCollection):
+class AmqpArrayType(_AmqpCollectionType):
     def __init__(self, element_type):
         super().__init__("array", list, 0xf0, 0xe0)
 
@@ -442,70 +443,70 @@ class AmqpArray(_AmqpCollection):
 
         return offset, value
 
-amqp_null = AmqpNull()
-amqp_boolean = AmqpBoolean()
+amqp_null_type = AmqpNullType()
+amqp_boolean_type = AmqpBooleanType()
 
-amqp_ubyte = AmqpUnsignedByte()
-amqp_ushort = AmqpUnsignedShort()
-amqp_uint = AmqpUnsignedInt()
-amqp_ulong = AmqpUnsignedLong()
+amqp_ubyte_type = AmqpUnsignedByteType()
+amqp_ushort_type = AmqpUnsignedShortType()
+amqp_uint_type = AmqpUnsignedIntType()
+amqp_ulong_type = AmqpUnsignedLongType()
 
-amqp_byte = AmqpByte()
-amqp_short = AmqpShort()
-amqp_int = AmqpInt()
-amqp_long = AmqpLong()
+amqp_byte_type = AmqpByteType()
+amqp_short_type = AmqpShortType()
+amqp_int_type = AmqpIntType()
+amqp_long_type = AmqpLongType()
 
-amqp_float = AmqpFloat()
-amqp_double = AmqpDouble()
+amqp_float_type = AmqpFloatType()
+amqp_double_type = AmqpDoubleType()
 
-amqp_char = AmqpChar()
-amqp_timestamp = AmqpTimestamp()
-amqp_uuid = AmqpUuid()
+amqp_char_type = AmqpCharType()
+amqp_timestamp_type = AmqpTimestampType()
+amqp_uuid_type = AmqpUuidType()
 
-amqp_binary = AmqpBinary()
-amqp_string = AmqpString()
-amqp_symbol = AmqpSymbol()
+amqp_binary_type = AmqpBinaryType()
+amqp_string_type = AmqpStringType()
+amqp_symbol_type = AmqpSymbolType()
 
-amqp_list = AmqpList()
-amqp_map = AmqpMap()
-amqp_array = AmqpArray(None)
+amqp_list_type = AmqpListType()
+amqp_map_type = AmqpMapType()
+amqp_array_type = AmqpArrayType(None)
 
 _data_types_by_format_code = {
-    0x40: amqp_null,
-    0x41: amqp_boolean,
-    0x42: amqp_boolean,
-    0x43: amqp_uint,
-    0x44: amqp_ulong,
-    0x50: amqp_ubyte,
-    0x51: amqp_byte,
-    0x52: amqp_uint,
-    0x53: amqp_ulong,
-    0x54: amqp_int,
-    0x55: amqp_long,
-    0x56: amqp_boolean,
-    0x60: amqp_ushort,
-    0x61: amqp_short,
-    0x70: amqp_uint,
-    0x71: amqp_int,
-    0x72: amqp_float,
-    0x73: amqp_char,
-    0x80: amqp_ulong,
-    0x81: amqp_long,
-    0x82: amqp_double,
-    0x83: amqp_timestamp,
-    0x98: amqp_uuid,
-    0xa0: amqp_binary,
-    0xa1: amqp_string,
-    0xa3: amqp_symbol,
-    0xb0: amqp_binary,
-    0xb1: amqp_string,
-    0xb3: amqp_symbol,
-    0xc0: amqp_list,
-    0xc1: amqp_map,
-    0xd0: amqp_list,
-    0xd1: amqp_map,
-    0xe0: amqp_array,
-    0xf0: amqp_array,
+    0x40: amqp_null_type,
+    0x41: amqp_boolean_type,
+    0x42: amqp_boolean_type,
+    0x43: amqp_uint_type,
+    0x44: amqp_ulong_type,
+    0x50: amqp_ubyte_type,
+    0x51: amqp_byte_type,
+    0x52: amqp_uint_type,
+    0x53: amqp_ulong_type,
+    0x54: amqp_int_type,
+    0x55: amqp_long_type,
+    0x56: amqp_boolean_type,
+    0x60: amqp_ushort_type,
+    0x61: amqp_short_type,
+    0x70: amqp_uint_type,
+    0x71: amqp_int_type,
+    0x72: amqp_float_type,
+    0x73: amqp_char_type,
+    0x80: amqp_ulong_type,
+    0x81: amqp_long_type,
+    0x82: amqp_double_type,
+    0x83: amqp_timestamp_type,
+    0x98: amqp_uuid_type,
+    0xa0: amqp_binary_type,
+    0xa1: amqp_string_type,
+    0xa3: amqp_symbol_type,
+    0xb0: amqp_binary_type,
+    0xb1: amqp_string_type,
+    0xb3: amqp_symbol_type,
+    0xc0: amqp_list_type,
+    0xc1: amqp_map_type,
+    0xd0: amqp_list_type,
+    0xd1: amqp_map_type,
+    0xe0: amqp_array_type,
+    0xf0: amqp_array_type,
 }
 
 def _get_data_type_for_format_code(format_code):
@@ -516,25 +517,25 @@ def _get_data_type_for_format_code(format_code):
 
 def _get_data_type_for_python_type(python_type):
     if issubclass(python_type, int):
-        return amqp_long
+        return amqp_long_type
 
     if issubclass(python_type, float):
-        return amqp_double
+        return amqp_double_type
 
     if issubclass(python_type, bytes):
-        return amqp_binary
+        return amqp_binary_type
 
     if issubclass(python_type, str):
-        return amqp_string
+        return amqp_string_type
 
     if issubclass(python_type, list):
-        return amqp_list
+        return amqp_list_type
 
     if issubclass(python_type, dict):
-        return amqp_map
+        return amqp_map_type
 
     if python_type is type(None):
-        return amqp_null
+        return amqp_null_type
 
     raise Exception("No data type for Python type {}".format(python_type))
 
@@ -581,73 +582,73 @@ def _main():
         return string[:min(max_, len(string))]
 
     data = [
-        (amqp_null, None),
-        (AmqpNull(amqp_symbol), ("a", None)),
+        (amqp_null_type, None),
+        (AmqpNullType(amqp_symbol_type), ("a", None)),
 
-        (amqp_boolean, True),
-        (amqp_boolean, False),
+        (amqp_boolean_type, True),
+        (amqp_boolean_type, False),
 
-        (amqp_ubyte, 0),
-        (amqp_ubyte, 0xff),
-        (amqp_ushort, 0),
-        (amqp_ushort, 0xffff),
-        (amqp_uint, 0),
-        (amqp_uint, 128),
-        (amqp_uint, 0xffffffff),
-        (amqp_ulong, 0),
-        (amqp_ulong, 128),
-        (amqp_ulong, 0xffffffffffffffff),
+        (amqp_ubyte_type, 0),
+        (amqp_ubyte_type, 0xff),
+        (amqp_ushort_type, 0),
+        (amqp_ushort_type, 0xffff),
+        (amqp_uint_type, 0),
+        (amqp_uint_type, 128),
+        (amqp_uint_type, 0xffffffff),
+        (amqp_ulong_type, 0),
+        (amqp_ulong_type, 128),
+        (amqp_ulong_type, 0xffffffffffffffff),
 
-        (amqp_byte, 127),
-        (amqp_byte, -128),
-        (amqp_short, -32768),
-        (amqp_short, 32767),
-        (amqp_int, -2147483648),
-        (amqp_int, 0),
-        (amqp_int, 2147483647),
-        (amqp_long, -9223372036854775808),
-        (amqp_long, 9223372036854775807),
+        (amqp_byte_type, 127),
+        (amqp_byte_type, -128),
+        (amqp_short_type, -32768),
+        (amqp_short_type, 32767),
+        (amqp_int_type, -2147483648),
+        (amqp_int_type, 0),
+        (amqp_int_type, 2147483647),
+        (amqp_long_type, -9223372036854775808),
+        (amqp_long_type, 9223372036854775807),
 
-        (amqp_float, 1.0),
-        (amqp_float, -1.0),
-        (amqp_double, 1.0),
-        (amqp_double, -1.0),
+        (amqp_float_type, 1.0),
+        (amqp_float_type, -1.0),
+        (amqp_double_type, 1.0),
+        (amqp_double_type, -1.0),
 
         # XXX Fails to decode to a single char on micropython
-        # (amqp_char, "a"),
+        # (amqp_char_type, "a"),
 
-        (amqp_timestamp, round(time.time(), 3)),
-        (amqp_uuid, _uuid_bytes()),
+        (amqp_timestamp_type, round(time.time(), 3)),
+        (amqp_uuid_type, _uuid_bytes()),
 
-        (amqp_binary, b"123"),
-        (amqp_binary, b"x" * 256),
-        (amqp_string, "Hello, \U0001F34B!"),
-        (amqp_string, "\U0001F34B" * 256),
-        (amqp_symbol, "hello"),
-        (amqp_symbol, "x" * 256),
+        (amqp_binary_type, b"123"),
+        (amqp_binary_type, b"x" * 256),
+        (amqp_string_type, "Hello, \U0001F34B!"),
+        (amqp_string_type, "\U0001F34B" * 256),
+        (amqp_symbol_type, "hello"),
+        (amqp_symbol_type, "x" * 256),
 
-        (amqp_list, [None, 0, 1, "abc"]),
-        (amqp_list, [0, 1, ["a", "b", "c"]]),
-        (amqp_list, [0, 1, {"a": 0, "b": 1}]),
-        (amqp_map, {None: 0, "a": 1, "b": 2}),
-        (amqp_map, {"a": 0, "b": {0: "x", 1: "y"}}),
-        (amqp_map, {"a": 0, "b": [0, 1, {"a": 0, "b": 1}]}),
+        (amqp_list_type, [None, 0, 1, "abc"]),
+        (amqp_list_type, [0, 1, ["a", "b", "c"]]),
+        (amqp_list_type, [0, 1, {"a": 0, "b": 1}]),
+        (amqp_map_type, {None: 0, "a": 1, "b": 2}),
+        (amqp_map_type, {"a": 0, "b": {0: "x", 1: "y"}}),
+        (amqp_map_type, {"a": 0, "b": [0, 1, {"a": 0, "b": 1}]}),
 
-        (AmqpArray(amqp_null), [None, None, None]),
-        (AmqpArray(amqp_ubyte), [0, 1, 2]),
-        (AmqpArray(amqp_ushort), [0, 1, 2]),
-        (AmqpArray(amqp_uint), [0, 1, 2]),
-        (AmqpArray(amqp_long), [0, 1, 2]),
-        (AmqpArray(amqp_float), [0.0, 1.5, 3.0]),
+        (AmqpArrayType(amqp_null_type), [None, None, None]),
+        (AmqpArrayType(amqp_ubyte_type), [0, 1, 2]),
+        (AmqpArrayType(amqp_ushort_type), [0, 1, 2]),
+        (AmqpArrayType(amqp_uint_type), [0, 1, 2]),
+        (AmqpArrayType(amqp_long_type), [0, 1, 2]),
+        (AmqpArrayType(amqp_float_type), [0.0, 1.5, 3.0]),
 
-        (AmqpArray(amqp_double), [0.0, 1.5, 3.0]),
+        (AmqpArrayType(amqp_double_type), [0.0, 1.5, 3.0]),
 
-        (AmqpArray(amqp_timestamp), [0.0, round(time.time(), 3), -1.0]),
-        (AmqpArray(amqp_uuid), [_uuid_bytes(), _uuid_bytes(), _uuid_bytes()]),
+        (AmqpArrayType(amqp_timestamp_type), [0.0, round(time.time(), 3), -1.0]),
+        (AmqpArrayType(amqp_uuid_type), [_uuid_bytes(), _uuid_bytes(), _uuid_bytes()]),
 
-        (AmqpArray(amqp_list), [[0, 1, "abc"], [0, 1, "abc"], [0, 1, "abc"]]),
-        (AmqpArray(amqp_map), [{"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}]),
-        (AmqpArray(AmqpArray(amqp_boolean)), [[True, False], [True, False], [True, False]]),
+        (AmqpArrayType(amqp_list_type), [[0, 1, "abc"], [0, 1, "abc"], [0, 1, "abc"]]),
+        (AmqpArrayType(amqp_map_type), [{"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}]),
+        (AmqpArrayType(AmqpArrayType(amqp_boolean_type)), [[True, False], [True, False], [True, False]]),
     ]
 
     debug = False
