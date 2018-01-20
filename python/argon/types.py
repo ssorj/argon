@@ -304,7 +304,6 @@ class AmqpSymbolType(_AmqpVariableWidthType):
     def decode(self, octets):
         return bytes(octets).decode("ascii")
 
-# XXX Get rid of this
 class _AmqpCollectionType(_AmqpDataType):
     def __init__(self, name, python_type, short_format_code, long_format_code, descriptor_type=None):
         super().__init__(name, python_type, long_format_code, descriptor_type=descriptor_type)
@@ -351,7 +350,6 @@ class _AmqpCompoundType(_AmqpCollectionType):
         offset += 4
 
         offset, count = self.encode_into(buff, offset, value)
-
         size = offset - count_offset
 
         buff.pack(size_offset, 8, "!II", size, count)
@@ -399,14 +397,12 @@ class AmqpArrayType(_AmqpCollectionType):
         return "{}<{}>".format(self.name, self.element_type)
 
     def encode_into(self, buff, offset, value):
-        start = offset
-
         for elem in value:
             offset, format_code = self.element_type.emit_value_long(buff, offset, elem)
 
-        return offset, offset - start, len(value)
+        return offset, len(value)
 
-    def decode_from(self, buff, offset, size, count, element_type, element_format_code):
+    def decode_from(self, buff, offset, count, element_type, element_format_code):
         value = [None] * count
 
         for i in range(count):
@@ -422,14 +418,19 @@ class AmqpArrayType(_AmqpCollectionType):
         if self.descriptor_type is not None:
             descriptor, value = value
 
-        size_and_count_offset = offset
-        offset += 8
+        size_offset = offset
+        offset += 4
+
+        count_offset = offset
+        offset += 4
 
         offset, element_format_code_offset = self.element_type.emit_constructor(buff, offset, descriptor)
         buff.pack(element_format_code_offset, 1, "!B", self.element_type.format_code)
 
-        offset, size, count = self.encode_into(buff, offset, value)
-        buff.pack(size_and_count_offset, 8, "!II", size, count)
+        offset, count = self.encode_into(buff, offset, value)
+        size = offset - count_offset
+
+        buff.pack(size_offset, 8, "!II", size, count)
 
         return offset, self.long_format_code
 
@@ -439,7 +440,7 @@ class AmqpArrayType(_AmqpCollectionType):
 
         element_type = _get_data_type_for_format_code(element_format_code)
 
-        offset, value = self.decode_from(buff, offset, size, count, element_type, element_format_code)
+        offset, value = self.decode_from(buff, offset, count, element_type, element_format_code)
 
         return offset, value
 
