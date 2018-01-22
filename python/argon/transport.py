@@ -1,9 +1,8 @@
 import socket as _socket
-import struct as _struct
 import sys as _sys
-import time as _time
 
-from argon.common import _hex, _Buffer
+from argon.common import *
+from argon.common import _hex, _time, _struct
 from argon.frames import *
 
 def send_protocol_header(buff, offset, sock):

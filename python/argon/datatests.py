@@ -17,10 +17,9 @@
 # under the License.
 #
 
-import time as _time
-
+from argon.common import *
+from argon.common import _time
 from argon.data import *
-from argon.data import _Buffer
 
 _strings = [
     "",
@@ -49,7 +48,7 @@ _lists = [
 def _main():
     start = _time.time()
     
-    buff = _Buffer()
+    buff = Buffer()
     offset = 0
 
     for coll in (_strings, _ints, _floats, _lists):

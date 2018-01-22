@@ -17,6 +17,7 @@
 # under the License.
 #
 
+from argon.common import *
 from argon.common import _struct, _hex, _namedtuple, _uuid_bytes
 
 class _DataType:

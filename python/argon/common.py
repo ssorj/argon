@@ -117,7 +117,7 @@ class Buffer:
         return len(self.octets)
 
 def _hex(data):
-    return "".join(["{:02x}".format(data[i]) for i in range(0, len(data), 2)])
+    return "".join(["{:02x}".format(x) for x in data])
 
 def _uuid_bytes():
     random.seed(round(_time.time() * 1000))
