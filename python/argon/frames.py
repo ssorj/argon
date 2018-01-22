@@ -18,7 +18,7 @@
 #
 
 from argon.common import _Buffer, _struct
-from argon.types import *
+from argon.data import *
 
 # XXX These don't allow for defaults, but the frame type objects could set them
 

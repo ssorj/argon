@@ -19,8 +19,8 @@
 
 import time as _time
 
-from argon.types import *
-from argon.types import _Buffer
+from argon.data import *
+from argon.data import _Buffer
 
 _strings = [
     "",

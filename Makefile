@@ -6,11 +6,11 @@ test: test-cpython test-micropython
 
 .PHONY: test-cpython
 test-cpython:
-	python3 -m argon.types
+	python3 -m argon.data
 
 .PHONY: test-micropython
 test-micropython:
-	micropython python/argon/types.py
+	micropython python/argon/data.py
 
 .PHONY: clean
 clean:
