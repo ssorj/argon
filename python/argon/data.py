@@ -499,15 +499,36 @@ def _get_data_type_for_format_code(format_code):
     except KeyError:
         raise Exception("No data type for format code 0x{:02X}".format(format_code))
 
+class UnsignedByte(int):
+    __argon_type = _ubyte_type
+
+class UnsignedShort(int):
+    __argon_type = _ushort_type
+
+class UnsignedInt(int):
+    __argon_type = _uint_type
+
 class UnsignedLong(int):
-    __type = _ulong_type
+    __argon_type = _ulong_type
+
+class Byte(int):
+    __argon_type = _byte_type
+
+class Short(int):
+    __argon_type = _short_type
+
+class Int(int):
+    __argon_type = _int_type
+
+class Float(float):
+    __argon_type = _float_type
 
 class Symbol(str):
-    __type = _symbol_type
+    __argon_type = _symbol_type
 
 def _get_data_type_for_python_type(python_type):
-    if hasattr(python_type, "__type"):
-        return python_type.__type
+    if python_type is type(None):
+        return _null_type
 
     if issubclass(python_type, int):
         return _long_type
@@ -527,8 +548,8 @@ def _get_data_type_for_python_type(python_type):
     if issubclass(python_type, dict):
         return _map_type
 
-    if python_type is type(None):
-        return _null_type
+    if hasattr(python_type, "__argon_type"):
+        return python_type.__argon_type
 
     raise Exception("No data type for Python type {}".format(python_type))
 
@@ -586,6 +607,7 @@ def _main():
         (_ulong_type, 0),
         (_ulong_type, 128),
         (_ulong_type, 0xffffffffffffffff),
+        #(_ulong_type, UnsignedLong(12)),
 
         (_byte_type, 127),
         (_byte_type, -128),
