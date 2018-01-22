@@ -48,7 +48,7 @@ _Detach = _namedtuple("_Detach", ("handle", "closed", "error"))
 _End = _namedtuple("_End", ("error",))
 _Close = _namedtuple("_Close", ("error",))
 
-class _AmqpFrame:
+class _Frame:
     def emit(self, buff, offset, channel, *args, **kwargs):
         size_offset = offset
         offset += 4
@@ -67,9 +67,9 @@ class _AmqpFrame:
     def parse(self, buff, offset):
         pass
 
-class OpenFrame(_AmqpFrame):
+class OpenFrame(_Frame):
     def __init__(self):
-        self.performative = AmqpListType(UnsignedLong(0 << 32 | 0x00000010))
+        self.performative = ListType(UnsignedLong(0 << 32 | 0x00000010))
 
     def emit_body(self, buff, offset, channel, container_id, hostname=None):
         fields = [
@@ -79,9 +79,9 @@ class OpenFrame(_AmqpFrame):
 
         return self.performative.emit(buff, offset, fields)
 
-class CloseFrame(_AmqpFrame):
+class CloseFrame(_Frame):
     def __init__(self):
-        self.performative = AmqpListType(UnsignedLong(0 << 32 | 0x00000018))
+        self.performative = ListType(UnsignedLong(0 << 32 | 0x00000018))
 
     def emit_body(self, buff, offset, channel):
         return self.performative.emit(buff, offset, [])

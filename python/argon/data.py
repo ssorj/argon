@@ -19,7 +19,7 @@
 
 from argon.common import _Buffer, _struct, _hex, _namedtuple, _uuid_bytes
 
-class _AmqpDataType:
+class _DataType:
     def __init__(self, name, python_type, format_code, descriptor=None):
         assert name is not None
         assert python_type is not None
@@ -58,7 +58,7 @@ class _AmqpDataType:
     def emit_value_long(self, buff, offset, value):
         raise NotImplementedError()
 
-class AmqpNullType(_AmqpDataType):
+class NullType(_DataType):
     def __init__(self, descriptor=None):
         super().__init__("null", type(None), 0x40, descriptor=descriptor)
 
@@ -68,7 +68,7 @@ class AmqpNullType(_AmqpDataType):
     def parse_value(self, buff, offset, format_code):
         return offset, None
 
-class AmqpBooleanType(_AmqpDataType):
+class BooleanType(_DataType):
     def __init__(self, descriptor=None):
         super().__init__("boolean", bool, 0x56, descriptor=descriptor)
 
@@ -92,7 +92,7 @@ class AmqpBooleanType(_AmqpDataType):
 
         return offset, value == 0x01
 
-class _AmqpFixedWidthType(_AmqpDataType):
+class _FixedWidthType(_DataType):
     def __init__(self, name, python_type, format_code, format_string, descriptor=None):
         super().__init__(name, python_type, format_code, descriptor=descriptor)
 
@@ -106,15 +106,15 @@ class _AmqpFixedWidthType(_AmqpDataType):
     def parse_value(self, buff, offset, format_code):
         return buff.unpack(offset, self.format_size, self.format_string)
 
-class AmqpUnsignedByteType(_AmqpFixedWidthType):
+class UnsignedByteType(_FixedWidthType):
     def __init__(self, descriptor=None):
         super().__init__("ubyte", int, 0x50, "!B", descriptor=descriptor)
 
-class AmqpUnsignedShortType(_AmqpFixedWidthType):
+class UnsignedShortType(_FixedWidthType):
     def __init__(self, descriptor=None):
         super().__init__("ushort", int, 0x60, "!H", descriptor=descriptor)
 
-class AmqpUnsignedIntType(_AmqpFixedWidthType):
+class UnsignedIntType(_FixedWidthType):
     def __init__(self, descriptor=None):
         super().__init__("uint", int, 0x70, "!I", descriptor=descriptor)
 
@@ -130,7 +130,7 @@ class AmqpUnsignedIntType(_AmqpFixedWidthType):
 
         return super().parse_value(buff, offset, format_code)
 
-class AmqpUnsignedLongType(_AmqpFixedWidthType):
+class UnsignedLongType(_FixedWidthType):
     def __init__(self, descriptor=None):
         super().__init__("ulong", int, 0x80, "!Q", descriptor=descriptor)
 
@@ -146,15 +146,15 @@ class AmqpUnsignedLongType(_AmqpFixedWidthType):
 
         return super().parse_value(buff, offset, format_code)
 
-class AmqpByteType(_AmqpFixedWidthType):
+class ByteType(_FixedWidthType):
     def __init__(self, descriptor=None):
         super().__init__("byte", int, 0x51, "!b", descriptor=descriptor)
 
-class AmqpShortType(_AmqpFixedWidthType):
+class ShortType(_FixedWidthType):
     def __init__(self, descriptor=None):
         super().__init__("short", int, 0x61, "!h", descriptor=descriptor)
 
-class AmqpIntType(_AmqpFixedWidthType):
+class IntType(_FixedWidthType):
     def __init__(self, descriptor=None):
         super().__init__("int", int, 0x71, "!i", descriptor=descriptor)
 
@@ -169,7 +169,7 @@ class AmqpIntType(_AmqpFixedWidthType):
 
         return super().parse_value(buff, offset, format_code)
 
-class AmqpLongType(_AmqpFixedWidthType):
+class LongType(_FixedWidthType):
     def __init__(self, descriptor=None):
         super().__init__("long", int, 0x81, "!q", descriptor=descriptor)
 
@@ -184,15 +184,15 @@ class AmqpLongType(_AmqpFixedWidthType):
 
         return super().parse_value(buff, offset, format_code)
 
-class AmqpFloatType(_AmqpFixedWidthType):
+class FloatType(_FixedWidthType):
     def __init__(self, descriptor=None):
         super().__init__("float", float, 0x72, "!f", descriptor=descriptor)
 
-class AmqpDoubleType(_AmqpFixedWidthType):
+class DoubleType(_FixedWidthType):
     def __init__(self, descriptor=None):
         super().__init__("double", float, 0x82, "!d", descriptor=descriptor)
 
-class AmqpCharType(_AmqpFixedWidthType):
+class CharType(_FixedWidthType):
     def __init__(self, descriptor=None):
         super().__init__("char", str, 0x73, "!4s", descriptor=descriptor)
 
@@ -204,11 +204,11 @@ class AmqpCharType(_AmqpFixedWidthType):
         offset, value = super().parse_value(buff, offset, format_code)
         return offset, value.decode("utf-32-be")
 
-class AmqpUuidType(_AmqpFixedWidthType):
+class UuidType(_FixedWidthType):
     def __init__(self, descriptor=None):
         super().__init__("uuid", bytes, 0x98, "!16s", descriptor=descriptor)
 
-class AmqpTimestampType(_AmqpFixedWidthType):
+class TimestampType(_FixedWidthType):
     def __init__(self, descriptor=None):
         super().__init__("timestamp", float, 0x83, "!q", descriptor=descriptor)
 
@@ -220,7 +220,7 @@ class AmqpTimestampType(_AmqpFixedWidthType):
         offset, value = super().parse_value(buff, offset, format_code)
         return offset, round(value / 1000, 3)
 
-class _AmqpVariableWidthType(_AmqpDataType):
+class _VariableWidthType(_DataType):
     def __init__(self, name, python_type, short_format_code, long_format_code, descriptor=None):
         super().__init__(name, python_type, long_format_code, descriptor=descriptor)
 
@@ -268,11 +268,11 @@ class _AmqpVariableWidthType(_AmqpDataType):
 
         return offset, value
 
-class AmqpBinaryType(_AmqpVariableWidthType):
+class BinaryType(_VariableWidthType):
     def __init__(self, descriptor=None):
         super().__init__("binary", bytes, 0xa0, 0xb0, descriptor=descriptor)
 
-class AmqpStringType(_AmqpVariableWidthType):
+class StringType(_VariableWidthType):
     def __init__(self, descriptor=None):
         super().__init__("string", str, 0xa1, 0xb1, descriptor=descriptor)
 
@@ -288,7 +288,7 @@ class AmqpStringType(_AmqpVariableWidthType):
 
         return self.emit_value_long(buff, offset, value)
 
-class AmqpSymbolType(_AmqpVariableWidthType):
+class SymbolType(_VariableWidthType):
     def __init__(self, descriptor=None):
         super().__init__("symbol", str, 0xa3, 0xb3, descriptor=descriptor)
 
@@ -298,7 +298,7 @@ class AmqpSymbolType(_AmqpVariableWidthType):
     def decode(self, octets):
         return bytes(octets).decode("ascii")
 
-class _AmqpCollectionType(_AmqpDataType):
+class _CollectionType(_DataType):
     def __init__(self, name, python_type, short_format_code, long_format_code, descriptor=None):
         super().__init__(name, python_type, long_format_code, descriptor=descriptor)
 
@@ -316,7 +316,7 @@ class _AmqpCollectionType(_AmqpDataType):
 
         raise Exception()
 
-class _AmqpCompoundType(_AmqpCollectionType):
+class _CompoundType(_CollectionType):
     def __init__(self, name, python_type, short_format_code, long_format_code, descriptor=None):
         super().__init__(name, python_type, short_format_code, long_format_code, descriptor=descriptor)
 
@@ -353,11 +353,11 @@ class _AmqpCompoundType(_AmqpCollectionType):
 
         return offset, value
 
-class AmqpListType(_AmqpCompoundType):
+class ListType(_CompoundType):
     def __init__(self, descriptor=None):
         super().__init__("list", list, 0xc0, 0xd0, descriptor=descriptor)
 
-class AmqpMapType(_AmqpCompoundType):
+class MapType(_CompoundType):
     def __init__(self, descriptor=None):
         super().__init__("map", dict, 0xc1, 0xd1, descriptor=descriptor)
 
@@ -378,7 +378,7 @@ class AmqpMapType(_AmqpCompoundType):
 
         return offset, pairs
 
-class AmqpArrayType(_AmqpCollectionType):
+class ArrayType(_CollectionType):
     def __init__(self, element_type, descriptor=None):
         super().__init__("array", list, 0xf0, 0xe0, descriptor=descriptor)
 
@@ -427,70 +427,70 @@ class AmqpArrayType(_AmqpCollectionType):
 
         return offset, value
 
-amqp_null_type = AmqpNullType()
-amqp_boolean_type = AmqpBooleanType()
+_null_type = NullType()
+_boolean_type = BooleanType()
 
-amqp_ubyte_type = AmqpUnsignedByteType()
-amqp_ushort_type = AmqpUnsignedShortType()
-amqp_uint_type = AmqpUnsignedIntType()
-amqp_ulong_type = AmqpUnsignedLongType()
+_ubyte_type = UnsignedByteType()
+_ushort_type = UnsignedShortType()
+_uint_type = UnsignedIntType()
+_ulong_type = UnsignedLongType()
 
-amqp_byte_type = AmqpByteType()
-amqp_short_type = AmqpShortType()
-amqp_int_type = AmqpIntType()
-amqp_long_type = AmqpLongType()
+_byte_type = ByteType()
+_short_type = ShortType()
+_int_type = IntType()
+_long_type = LongType()
 
-amqp_float_type = AmqpFloatType()
-amqp_double_type = AmqpDoubleType()
+_float_type = FloatType()
+_double_type = DoubleType()
 
-amqp_char_type = AmqpCharType()
-amqp_timestamp_type = AmqpTimestampType()
-amqp_uuid_type = AmqpUuidType()
+_char_type = CharType()
+_timestamp_type = TimestampType()
+_uuid_type = UuidType()
 
-amqp_binary_type = AmqpBinaryType()
-amqp_string_type = AmqpStringType()
-amqp_symbol_type = AmqpSymbolType()
+_binary_type = BinaryType()
+_string_type = StringType()
+_symbol_type = SymbolType()
 
-amqp_list_type = AmqpListType()
-amqp_map_type = AmqpMapType()
-amqp_array_type = AmqpArrayType(None)
+_list_type = ListType()
+_map_type = MapType()
+_array_type = ArrayType(None)
 
 _data_types_by_format_code = {
-    0x40: amqp_null_type,
-    0x41: amqp_boolean_type,
-    0x42: amqp_boolean_type,
-    0x43: amqp_uint_type,
-    0x44: amqp_ulong_type,
-    0x50: amqp_ubyte_type,
-    0x51: amqp_byte_type,
-    0x52: amqp_uint_type,
-    0x53: amqp_ulong_type,
-    0x54: amqp_int_type,
-    0x55: amqp_long_type,
-    0x56: amqp_boolean_type,
-    0x60: amqp_ushort_type,
-    0x61: amqp_short_type,
-    0x70: amqp_uint_type,
-    0x71: amqp_int_type,
-    0x72: amqp_float_type,
-    0x73: amqp_char_type,
-    0x80: amqp_ulong_type,
-    0x81: amqp_long_type,
-    0x82: amqp_double_type,
-    0x83: amqp_timestamp_type,
-    0x98: amqp_uuid_type,
-    0xa0: amqp_binary_type,
-    0xa1: amqp_string_type,
-    0xa3: amqp_symbol_type,
-    0xb0: amqp_binary_type,
-    0xb1: amqp_string_type,
-    0xb3: amqp_symbol_type,
-    0xc0: amqp_list_type,
-    0xc1: amqp_map_type,
-    0xd0: amqp_list_type,
-    0xd1: amqp_map_type,
-    0xe0: amqp_array_type,
-    0xf0: amqp_array_type,
+    0x40: _null_type,
+    0x41: _boolean_type,
+    0x42: _boolean_type,
+    0x43: _uint_type,
+    0x44: _ulong_type,
+    0x50: _ubyte_type,
+    0x51: _byte_type,
+    0x52: _uint_type,
+    0x53: _ulong_type,
+    0x54: _int_type,
+    0x55: _long_type,
+    0x56: _boolean_type,
+    0x60: _ushort_type,
+    0x61: _short_type,
+    0x70: _uint_type,
+    0x71: _int_type,
+    0x72: _float_type,
+    0x73: _char_type,
+    0x80: _ulong_type,
+    0x81: _long_type,
+    0x82: _double_type,
+    0x83: _timestamp_type,
+    0x98: _uuid_type,
+    0xa0: _binary_type,
+    0xa1: _string_type,
+    0xa3: _symbol_type,
+    0xb0: _binary_type,
+    0xb1: _string_type,
+    0xb3: _symbol_type,
+    0xc0: _list_type,
+    0xc1: _map_type,
+    0xd0: _list_type,
+    0xd1: _map_type,
+    0xe0: _array_type,
+    0xf0: _array_type,
 }
 
 def _get_data_type_for_format_code(format_code):
@@ -500,35 +500,35 @@ def _get_data_type_for_format_code(format_code):
         raise Exception("No data type for format code 0x{:02X}".format(format_code))
 
 class UnsignedLong(int):
-    _amqp_type = amqp_ulong_type
+    __type = _ulong_type
 
 class Symbol(str):
-    _amqp_type = amqp_symbol_type
+    __type = _symbol_type
 
 def _get_data_type_for_python_type(python_type):
-    if hasattr(python_type, "_amqp_type"):
-        return python_type._amqp_type
+    if hasattr(python_type, "__type"):
+        return python_type.__type
 
     if issubclass(python_type, int):
-        return amqp_long_type
+        return _long_type
 
     if issubclass(python_type, float):
-        return amqp_double_type
+        return _double_type
 
     if issubclass(python_type, bytes):
-        return amqp_binary_type
+        return _binary_type
 
     if issubclass(python_type, str):
-        return amqp_string_type
+        return _string_type
 
     if issubclass(python_type, list):
-        return amqp_list_type
+        return _list_type
 
     if issubclass(python_type, dict):
-        return amqp_map_type
+        return _map_type
 
     if python_type is type(None):
-        return amqp_null_type
+        return _null_type
 
     raise Exception("No data type for Python type {}".format(python_type))
 
@@ -570,73 +570,73 @@ def _main():
         return string[:min(max_, len(string))]
 
     data = [
-        (amqp_null_type, None),
-        (AmqpNullType(Symbol("a")), None),
+        (_null_type, None),
+        (NullType(Symbol("a")), None),
 
-        (amqp_boolean_type, True),
-        (amqp_boolean_type, False),
+        (_boolean_type, True),
+        (_boolean_type, False),
 
-        (amqp_ubyte_type, 0),
-        (amqp_ubyte_type, 0xff),
-        (amqp_ushort_type, 0),
-        (amqp_ushort_type, 0xffff),
-        (amqp_uint_type, 0),
-        (amqp_uint_type, 128),
-        (amqp_uint_type, 0xffffffff),
-        (amqp_ulong_type, 0),
-        (amqp_ulong_type, 128),
-        (amqp_ulong_type, 0xffffffffffffffff),
+        (_ubyte_type, 0),
+        (_ubyte_type, 0xff),
+        (_ushort_type, 0),
+        (_ushort_type, 0xffff),
+        (_uint_type, 0),
+        (_uint_type, 128),
+        (_uint_type, 0xffffffff),
+        (_ulong_type, 0),
+        (_ulong_type, 128),
+        (_ulong_type, 0xffffffffffffffff),
 
-        (amqp_byte_type, 127),
-        (amqp_byte_type, -128),
-        (amqp_short_type, -32768),
-        (amqp_short_type, 32767),
-        (amqp_int_type, -2147483648),
-        (amqp_int_type, 0),
-        (amqp_int_type, 2147483647),
-        (amqp_long_type, -9223372036854775808),
-        (amqp_long_type, 9223372036854775807),
+        (_byte_type, 127),
+        (_byte_type, -128),
+        (_short_type, -32768),
+        (_short_type, 32767),
+        (_int_type, -2147483648),
+        (_int_type, 0),
+        (_int_type, 2147483647),
+        (_long_type, -9223372036854775808),
+        (_long_type, 9223372036854775807),
 
-        (amqp_float_type, 1.0),
-        (amqp_float_type, -1.0),
-        (amqp_double_type, 1.0),
-        (amqp_double_type, -1.0),
+        (_float_type, 1.0),
+        (_float_type, -1.0),
+        (_double_type, 1.0),
+        (_double_type, -1.0),
 
         # XXX Fails to decode to a single char on micropython
-        # (amqp_char_type, "a"),
+        # (_char_type, "a"),
 
-        (amqp_timestamp_type, round(time.time(), 3)),
-        (amqp_uuid_type, _uuid_bytes()),
+        (_timestamp_type, round(time.time(), 3)),
+        (_uuid_type, _uuid_bytes()),
 
-        (amqp_binary_type, b"123"),
-        (amqp_binary_type, b"x" * 256),
-        (amqp_string_type, "Hello, \U0001F34B!"),
-        (amqp_string_type, "\U0001F34B" * 256),
-        (amqp_symbol_type, "hello"),
-        (amqp_symbol_type, "x" * 256),
+        (_binary_type, b"123"),
+        (_binary_type, b"x" * 256),
+        (_string_type, "Hello, \U0001F34B!"),
+        (_string_type, "\U0001F34B" * 256),
+        (_symbol_type, "hello"),
+        (_symbol_type, "x" * 256),
 
-        (amqp_list_type, [None, 0, 1, "abc"]),
-        (amqp_list_type, [0, 1, ["a", "b", "c"]]),
-        (amqp_list_type, [0, 1, {"a": 0, "b": 1}]),
-        (amqp_map_type, {None: 0, "a": 1, "b": 2}),
-        (amqp_map_type, {"a": 0, "b": {0: "x", 1: "y"}}),
-        (amqp_map_type, {"a": 0, "b": [0, 1, {"a": 0, "b": 1}]}),
+        (_list_type, [None, 0, 1, "abc"]),
+        (_list_type, [0, 1, ["a", "b", "c"]]),
+        (_list_type, [0, 1, {"a": 0, "b": 1}]),
+        (_map_type, {None: 0, "a": 1, "b": 2}),
+        (_map_type, {"a": 0, "b": {0: "x", 1: "y"}}),
+        (_map_type, {"a": 0, "b": [0, 1, {"a": 0, "b": 1}]}),
 
-        (AmqpArrayType(amqp_null_type), [None, None, None]),
-        (AmqpArrayType(amqp_ubyte_type), [0, 1, 2]),
-        (AmqpArrayType(amqp_ushort_type), [0, 1, 2]),
-        (AmqpArrayType(amqp_uint_type), [0, 1, 2]),
-        (AmqpArrayType(amqp_long_type), [0, 1, 2]),
-        (AmqpArrayType(amqp_float_type), [0.0, 1.5, 3.0]),
+        (ArrayType(_null_type), [None, None, None]),
+        (ArrayType(_ubyte_type), [0, 1, 2]),
+        (ArrayType(_ushort_type), [0, 1, 2]),
+        (ArrayType(_uint_type), [0, 1, 2]),
+        (ArrayType(_long_type), [0, 1, 2]),
+        (ArrayType(_float_type), [0.0, 1.5, 3.0]),
 
-        (AmqpArrayType(amqp_double_type), [0.0, 1.5, 3.0]),
+        (ArrayType(_double_type), [0.0, 1.5, 3.0]),
 
-        (AmqpArrayType(amqp_timestamp_type), [0.0, round(time.time(), 3), -1.0]),
-        (AmqpArrayType(amqp_uuid_type), [_uuid_bytes(), _uuid_bytes(), _uuid_bytes()]),
+        (ArrayType(_timestamp_type), [0.0, round(time.time(), 3), -1.0]),
+        (ArrayType(_uuid_type), [_uuid_bytes(), _uuid_bytes(), _uuid_bytes()]),
 
-        (AmqpArrayType(amqp_list_type), [[0, 1, "abc"], [0, 1, "abc"], [0, 1, "abc"]]),
-        (AmqpArrayType(amqp_map_type), [{"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}]),
-        (AmqpArrayType(AmqpArrayType(amqp_boolean_type)), [[True, False], [True, False], [True, False]]),
+        (ArrayType(_list_type), [[0, 1, "abc"], [0, 1, "abc"], [0, 1, "abc"]]),
+        (ArrayType(_map_type), [{"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}]),
+        (ArrayType(ArrayType(_boolean_type)), [[True, False], [True, False], [True, False]]),
     ]
 
     debug = False
