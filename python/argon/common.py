@@ -79,6 +79,21 @@ class _Buffer:
 
         return (offset + size,) + values
 
+    def send(self, offset, size, sock):
+        offset, data = self.read(offset, size)
+        return offset
+
+    def recv(self, offset, size, sock):
+        start = offset
+
+        self.ensure(offset + size)
+
+        offset += sock.recv_into(self.octets, size)
+
+        # XXX Not sure this should return the data
+        
+        return offset, self.view[start:offset]
+
     def __getitem__(self, index):
         return self.view[index]
 

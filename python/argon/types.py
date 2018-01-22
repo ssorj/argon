@@ -328,7 +328,7 @@ class _AmqpCompoundType(_AmqpCollectionType):
         return offset, len(value)
 
     def decode_from(self, buff, offset, count):
-        assert count < 1000, count # XXX This is incorrect, but it catches some codec bugs
+        # assert count < 1000, count # XXX This is incorrect, but it catches some codec bugs
 
         value = [None] * count
 
@@ -345,8 +345,8 @@ class _AmqpCompoundType(_AmqpCollectionType):
         offset += 4
 
         offset, count = self.encode_into(buff, offset, value)
-        size = offset - count_offset
 
+        size = offset - count_offset
         buff.pack(size_offset, 8, "!II", size, count)
 
         return offset, self.long_format_code
@@ -418,8 +418,8 @@ class AmqpArrayType(_AmqpCollectionType):
         buff.pack(element_format_code_offset, 1, "!B", self.element_type.format_code)
 
         offset, count = self.encode_into(buff, offset, value)
-        size = offset - count_offset
 
+        size = offset - count_offset
         buff.pack(size_offset, 8, "!II", size, count)
 
         return offset, self.long_format_code
