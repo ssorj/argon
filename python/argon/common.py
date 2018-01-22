@@ -19,19 +19,29 @@
 
 import sys as _sys
 
-try:
-    import struct as _struct
-except ImportError:
-    import ustruct as _struct
+_micropython = _sys.implementation.name == "micropython"
 
 try:
     from collections import namedtuple as _namedtuple
 except ImportError:
     from ucollections import namedtuple as _namedtuple
 
-_micropython = _sys.implementation.name == "micropython"
+try:
+    import ustruct as _struct
+except ImportError:
+    import struct as _struct
 
-class _Buffer:
+try:
+    import utime as _time
+except ImportError:
+    import time as _time
+
+try:
+    import urandom as random
+except ImportError:
+    import random
+
+class Buffer:
     def __init__(self):
         self.octets = bytearray(256)
         self.view = memoryview(self.octets)
@@ -106,26 +116,11 @@ class _Buffer:
     def __len__(self):
         return len(self.octets)
 
-def _hex(buff):
-    try:
-        import binascii
-    except ImportError:
-        import ubinascii as binascii
-
-    return binascii.hexlify(buff)
+def _hex(data):
+    return "".join(["{:02x}".format(data[i]) for i in range(0, len(data), 2)])
 
 def _uuid_bytes():
-    try:
-        import utime as time
-    except ImportError:
-        import time
-
-    try:
-        import urandom as random
-    except ImportError:
-        import random
-
-    random.seed(round(time.time() * 1000))
+    random.seed(round(_time.time() * 1000))
 
     values = (
         random.getrandbits(32),

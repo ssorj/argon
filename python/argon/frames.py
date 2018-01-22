@@ -50,8 +50,7 @@ _Close = _namedtuple("_Close", ("error",))
 
 class _Frame:
     def emit(self, buff, offset, channel, *args, **kwargs):
-        size_offset = offset
-        offset += 4
+        offset, size_offset = buff.skip(offset, 4)
 
         offset = buff.pack(offset, 4, "!BBH", 2, 0, channel)
         offset = self.emit_body(buff, offset, channel, *args, **kwargs)
