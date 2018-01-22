@@ -231,7 +231,7 @@ class _AmqpVariableWidthType(_AmqpDataType):
         return value
 
     def decode(self, octets):
-        return bytes(octets)
+        return octets
 
     def emit_value(self, buff, offset, value):
         if len(value) < 256:
