@@ -48,6 +48,9 @@ class _Buffer:
                 self.octets.extend([0] * max(size, 2 * len(self.octets)))
                 self.view = memoryview(self.octets)
 
+    def skip(self, offset, size):
+        return offset + size, offset
+
     if _micropython:
         def read(self, offset, size):
             end = offset + size

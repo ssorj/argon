@@ -48,8 +48,7 @@ class _AmqpDataType:
             offset = buff.pack(offset, 1, "!B", 0x00)
             offset = emit_data(buff, offset, self.descriptor)
 
-        format_code_offset = offset # The format code is filled in later
-        offset += 1
+        offset, format_code_offset = buff.skip(offset, 1) # The format code is filled in later
 
         return offset, format_code_offset
 
@@ -338,11 +337,8 @@ class _AmqpCompoundType(_AmqpCollectionType):
         return offset, value
 
     def emit_value_long(self, buff, offset, value):
-        size_offset = offset
-        offset += 4
-
-        count_offset = offset
-        offset += 4
+        offset, size_offset = buff.skip(offset, 4)
+        offset, count_offset = buff.skip(offset, 4)
 
         offset, count = self.encode_into(buff, offset, value)
 
@@ -408,11 +404,8 @@ class AmqpArrayType(_AmqpCollectionType):
     def emit_value_long(self, buff, offset, value):
         assert self.element_type is not None
 
-        size_offset = offset
-        offset += 4
-
-        count_offset = offset
-        offset += 4
+        offset, size_offset = buff.skip(offset, 4)
+        offset, count_offset = buff.skip(offset, 4)
 
         offset, element_format_code_offset = self.element_type.emit_constructor(buff, offset)
         buff.pack(element_format_code_offset, 1, "!B", self.element_type.format_code)
