@@ -119,3 +119,6 @@ def _uuid_bytes():
     )
 
     return _struct.pack("IIII", *values)
+
+def _shorten(string, max_=20):
+    return string[:min(max_, len(string))]

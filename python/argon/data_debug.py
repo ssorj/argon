@@ -18,7 +18,7 @@
 #
 
 from argon.common import *
-from argon.common import _hex, _uuid_bytes, _time
+from argon.common import _hex, _shorten, _time, _uuid_bytes
 from argon.data import *
 
 _data = [
@@ -93,19 +93,6 @@ _data = [
 ]
 
 def _main():
-    try:
-        import utime as time
-    except ImportError:
-        import time
-
-    try:
-        import urandom as random
-    except ImportError:
-        import random
-
-    def _shorten(string, max_=20):
-        return string[:min(max_, len(string))]
-
     debug = False
 
     buff = Buffer()
