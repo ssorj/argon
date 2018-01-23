@@ -5,7 +5,7 @@ set -eu
 log=$(mktemp)
 out=$HOME/flamegraph.svg
 
-python3 -O -m flamegraph -o $log python/argon/datatests.py
+python3 -O -m flamegraph -o $log python/argon/data_test.py
 ../FlameGraph/flamegraph.pl $log > $out
 
 echo "RESULT: $out"

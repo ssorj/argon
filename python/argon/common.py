@@ -96,22 +96,11 @@ class Buffer:
         offset, data = self.read(offset, size)
         return offset
 
-    def recv(self, offset, size, sock):
-        start = offset
-
-        self.ensure(offset + size)
-
-        offset += sock.recv_into(self.octets, size)
-
-        # XXX Not sure this should return the data
-        
-        return offset, self.view[start:offset]
-
     def __getitem__(self, index):
         return self.view[index]
 
     def __setitem__(self, index, value):
-        self.octets[index] = value
+        self.octets[index] = value # XXX view
 
     def __len__(self):
         return len(self.octets)

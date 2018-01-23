@@ -18,7 +18,7 @@
 #
 
 from argon.common import *
-from argon.common import _struct
+from argon.common import _namedtuple, _struct
 from argon.data import *
 
 # XXX These don't allow for defaults, but the frame type objects could set them
@@ -40,7 +40,7 @@ _Flow = _namedtuple("_Flow", ("next_incoming_id", "incoming_window", "next_outgo
                               "outgoing_window", "handle", "delivery_count", "link_credit",
                               "available", "drain", "echo", "properties"))
 
-_Transfer = _namedtyple("_Transfer", ("handle", "delivery_id", "delivery_tag", "message_format",
+_Transfer = _namedtuple("_Transfer", ("handle", "delivery_id", "delivery_tag", "message_format",
                                       "settled", "more", "rcv_settle_mode", "state",
                                       "resume", "aborted", "batchable"))
 
@@ -52,7 +52,6 @@ _Close = _namedtuple("_Close", ("error",))
 class _Frame:
     def emit(self, buff, offset, channel, *args, **kwargs):
         offset, size_offset = buff.skip(offset, 4)
-
         offset = buff.pack(offset, 4, "!BBH", 2, 0, channel)
         offset = self.emit_body(buff, offset, channel, *args, **kwargs)
 
@@ -85,3 +84,7 @@ class CloseFrame(_Frame):
 
     def emit_body(self, buff, offset, channel):
         return self.performative.emit(buff, offset, [])
+
+# -> offset, frame-values
+def parse_frames(buff, offset):
+    pass

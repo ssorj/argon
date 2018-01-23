@@ -1,27 +1,30 @@
 export PYTHONPATH := python
 export MICROPYPATH := python
 
-.PHONY: devel
-devel: devel-cpython devel-micropython
+.PHONY: default
+default: data-debug
 
-.PHONY: devel-cpython
-devel-cpython:
-	python3 -m argon.datadevel
+.PHONY: data-debug
+data-debug: data-debug-cpython data-debug-micropython
 
-.PHONY: devel-micropython
-devel-micropython:
-	micropython python/argon/datadevel.py
+.PHONY: data-debug-cpython
+data-debug-cpython:
+	python3 -m argon.data_debug
 
-.PHONY: test
-test: test-cpython test-micropython
+.PHONY: data-debug-micropython
+data-debug-micropython:
+	micropython python/argon/data_debug.py
 
-.PHONY: test-cpython
-test-cpython:
-	python3 -m argon.datatests
+.PHONY: data-test
+data-test: data-test-cpython data-test-micropython
 
-.PHONY: test-micropython
-test-micropython:
-	micropython python/argon/datatests.py
+.PHONY: data-test-cpython
+data-test-cpython:
+	python3 -m argon.data_test.py
+
+.PHONY: data-test-micropython
+data-test-micropython:
+	micropython python/argon/data_test.py
 
 .PHONY: clean
 clean:
