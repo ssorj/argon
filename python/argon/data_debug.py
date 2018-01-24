@@ -97,48 +97,47 @@ def _main():
 
     buff = Buffer()
     offset = 0
-    output_hexes = list()
+    output_data = list()
 
-    for i in range(1):
-        for data_type, input_value in _data:
-            if debug:
-                print("Emitting {} {}".format(data_type, input_value))
+    for data_type, input_value in _data:
+        if debug:
+            print("Emitting {} {}".format(data_type, input_value))
 
-            start = offset
-            offset = data_type.emit(buff, offset, input_value)
+        start = offset
+        offset = data_type.emit(buff, offset, input_value)
 
-            hex_ = _hex(buff[start:offset])
-            output_hexes.append(hex_)
+        data = _hex(buff[start:offset])
+        output_data.append(data)
 
-            if debug:
-                print("Emitted {}".format(hex_))
+        if debug:
+            print("Emitted {}".format(data))
 
-        offset = 0
-        output_values = list()
+    offset = 0
+    output_values = list()
 
-        for data_type, input_value in _data:
-            if debug:
-                lookahead = _hex(buff[offset:offset + 10])
-                print("Parsing {}... for {} {}".format(lookahead, data_type, input_value))
+    for data_type, input_value in _data:
+        if debug:
+            lookahead = _hex(buff[offset:offset + 10])
+            print("Parsing {}... for {} {}".format(lookahead, data_type, input_value))
 
-            start = offset
-            offset, value = parse_data(buff, offset)
+        start = offset
+        offset, value = parse_data(buff, offset)
 
-            if debug:
-                print("Parsed {}".format(_hex(buff[start:offset])))
+        if debug:
+            print("Parsed {}".format(_hex(buff[start:offset])))
 
-            assert value == input_value, "Expected {} but got {}".format(input_value, value)
+        assert value == input_value, "Expected {} but got {}".format(input_value, value)
 
-            output_values.append(value)
+        output_values.append(value)
 
-    row = "{:4} {:22} {:>22} {:>22} {}"
+    row = "{:4}  {:22}  {:>24}  {:>24}  {}"
 
     for i, item in enumerate(_data):
         data_type, input_value = item
         output_value = output_values[i]
-        output_hex = output_hexes[i]
+        data = output_data[i]
 
-        print(row.format(i, repr(data_type), _shorten(str(input_value)), _shorten(str(output_value)), output_hex))
+        print(row.format(i, repr(data_type), _shorten(str(input_value), 24), _shorten(str(output_value), 24), data))
 
 if __name__ == "__main__":
     try:
