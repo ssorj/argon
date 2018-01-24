@@ -121,7 +121,7 @@ def _main():
             print("Parsing {}... for {} {}".format(lookahead, data_type, input_value))
 
         start = offset
-        offset, value = parse_data(buff, offset)
+        offset, value, descriptor = parse_data(buff, offset)
 
         if debug:
             print("Parsed {}".format(_hex(buff[start:offset])))

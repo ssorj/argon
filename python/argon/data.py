@@ -333,7 +333,7 @@ class _CompoundType(_CollectionType):
         value = [None] * count
 
         for i in range(count):
-            offset, value[i] = parse_data(buff, offset)
+            offset, value[i], _ = parse_data(buff, offset)
 
         return offset, value
 
@@ -564,15 +564,16 @@ def emit_data(buff, offset, value):
 def parse_data(buff, offset):
     offset, format_code, descriptor = _parse_constructor(buff, offset)
     data_type = _get_data_type_for_format_code(format_code)
-
-    return data_type.parse_value(buff, offset, format_code)
+    offset, value = data_type.parse_value(buff, offset, format_code)
+    
+    return offset, value, descriptor
 
 def _parse_constructor(buff, offset):
     offset, format_code = buff.unpack(offset, 1, "!B")
     descriptor = None
 
     if format_code == 0x00:
-        offset, descriptor = parse_data(buff, offset)
+        offset, descriptor, _ = parse_data(buff, offset)
         offset, format_code = buff.unpack(offset, 1, "!B")
 
     return offset, format_code, descriptor

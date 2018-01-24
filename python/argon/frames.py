@@ -49,27 +49,41 @@ class _Frame:
 
 class OpenFrame(_Frame):
     def __init__(self):
-        self.performative = ListType(UnsignedLong(0 << 32 | 0x00000010))
+        self._performative = ListType(UnsignedLong(0 << 32 | 0x00000010))
 
     def emit_body(self, buff, offset, fields):
-        return self.performative.emit(buff, offset, fields._values)
+        return self._performative.emit(buff, offset, fields._values)
 
     def parse_body(self, buff, offset):
-        #offset, values = self.performative.parse(buff, offset)
-        offset, values = parse_data(buff, offset)
+        #offset, values = self._performative.parse(buff, offset)
+        offset, values, descriptor = parse_data(buff, offset)
         return offset, OpenFrameFields(*values)
 
 class CloseFrame(_Frame):
     def __init__(self):
-        self.performative = ListType(UnsignedLong(0 << 32 | 0x00000018))
+        self._performative = ListType(UnsignedLong(0 << 32 | 0x00000018))
 
     def emit_body(self, buff, offset, fields):
-        return self.performative.emit(buff, offset, fields._values)
+        return self._performative.emit(buff, offset, fields._values)
 
     def parse_body(self, buff, offset):
-        #offset, values = self.performative.parse(buff, offset)
-        offset, values = parse_data(buff, offset)
+        #offset, values = self._performative.parse(buff, offset)
+        offset, values, descriptor = parse_data(buff, offset)
         return offset, CloseFrameFields(*values)
+
+_open_frame = OpenFrame()
+_close_frame = CloseFrame()
+
+_frames_by_performative_code = {
+    UnsignedLong(0 << 32 | 0x00000010): _open_frame,
+    UnsignedLong(0 << 32 | 0x00000018): _close_frame,
+}
+
+def _get_frame_for_performative_code(code):
+    try:
+        return _frames_by_performative_code[code]
+    except KeyError:
+        raise Exception("No frame for performative code 0x{:02X}".format(code))
 
 class _FrameFields:
     __slots__ = ("_values",)
@@ -121,17 +135,22 @@ class OpenFrameFields(_FrameFields):
 class CloseFrameFields(_FrameFields):
     __slots__ = ()
 
-    def __init__(self, error=None):
-        super().__init__(1)
-
-        self.error = error
+    def __init__(self, *args, **kwargs):
+        super().__init__(1, *args, **kwargs)
 
     error = _field(0)
 
-# OpenFields = _namedtuple("OpenFields",
-#                          ("container_id", "hostname", "max_frame_size", "channel_max",
-#                           "idle_timeout", "outgoing_locales", "incoming_locales",
-#                           "offered_capabilities", "desired_capabilities", "properties"))
+def parse_frame(buff, offset):
+    offset, size, channel = self._parse_header(buff, offset)
+    offset, fields = self.parse_body(buff, offset)
+
+    # size XXX !
+
+    return offset, channel, fields
+
+def _parse_header(buff, offset):
+    offset, size, _, _, channel = buff.unpack(offset, 8, "!IBBH")
+    return offset, channel
 
 # BeginFields = _namedtuple("BeginFields",
 #                           ("remote_channel", "next_outgoing_id", "incoming_window",
@@ -160,9 +179,3 @@ class CloseFrameFields(_FrameFields):
 # DetachFields = _namedtuple("DetachFields", ("handle", "closed", "error"))
 
 # EndFields = _namedtuple("EndFields", ("error",))
-
-# CloseFields = _namedtuple("CloseFields", ("error",))
-
-# -> offset, frame-values
-def parse_frames(buff, offset):
-    pass
