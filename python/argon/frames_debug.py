@@ -21,10 +21,15 @@ from argon.common import *
 from argon.common import _hex, _shorten, _time
 from argon.frames import *
 
-_frames = [
-    (OpenFrame(), OpenFrameFields(container_id="test0")),
-    (OpenFrame(), OpenFrameFields(container_id="test1", hostname="example.org")),
-    (CloseFrame(), CloseFrameFields()),
+def _frame_hex(octets):
+    o = _hex(octets)
+    args = o[0:8], o[8:12], o[12:16], o[16:18], o[18:22], o[22:24], o[24:],
+    return "{} {} {} {} {} {} {}".format(*args)
+
+_input_frames = [
+    OpenFrame(0, ["test0"]),
+    OpenFrame(1, ["test1", "example.org"]),
+    CloseFrame(0),
 ]
 
 def _main():
@@ -32,48 +37,55 @@ def _main():
 
     buff = Buffer()
     offset = 0
-    output_data = list()
 
-    for frame, input_fields in _frames:
+    output_octets = list()
+
+    for frame in _input_frames:
         if debug:
-            print("Emitting {} {}".format(frame, input_fields))
+            print("Emitting {}".format(frame))
 
         start = offset
-        offset = frame.emit(buff, offset, 0, input_fields)
+        offset = emit_frame(buff, offset, frame)
 
-        data = _hex(buff[start:offset])
-        output_data.append(data)
+        octets = _frame_hex(buff[start:offset])
+        output_octets.append(octets)
 
         if debug:
-            print("Emitted {}".format(data))
+            print("Emitted {}".format(octets))
 
     offset = 0
-    output_fields = list()
 
-    for frame, input_fields in _frames:
+    output_frames = list()
+
+    for frame in _input_frames:
         if debug:
-            lookahead = _hex(buff[offset:offset + 10])
-            print("Parsing {}... for {} {}".format(lookahead, frame, input_fields))
+            lookahead = _hex(buff[offset:offset + 20])
+            print("Parsing {}... for {}".format(lookahead, frame))
 
         start = offset
-        #offset, fields = parse_frame(buff, offset)
-        offset, channel, fields = frame.parse(buff, offset)
+        offset, output_frame = parse_frame(buff, offset)
 
         if debug:
-            print("Parsed {}".format(_hex(buff[start:offset])))
+            print("Parsed {}".format(_frame_hex(buff[start:offset])))
 
-        assert fields == input_fields, "Expected {} but got {}".format(input_fields, fields)
+        assert output_frame == frame, "Expected {} but got {}".format(frame, output_frame)
 
-        output_fields.append(fields)
+        output_frames.append(frame)
 
-    row = "{:4}  {:12}  {:30}  {:30}  {}"
+    row = "{:4}  {:30}  {:30}  {}"
 
-    for i, item in enumerate(_frames):
-        frame, input_fields = item
-        fields = output_fields[i]
-        data = output_data[i]
+    for i, frame in enumerate(_input_frames):
+        output_frame = output_frames[i]
+        octets = output_octets[i]
 
-        print(row.format(i, repr(frame), _shorten(str(input_fields), 30), _shorten(str(fields), 30), data))
+        args = (
+            i,
+            _shorten(str(frame), 30),
+            _shorten(str(output_frame), 30),
+            octets,
+        )
+
+        print(row.format(*args))
 
 if __name__ == "__main__":
     try:

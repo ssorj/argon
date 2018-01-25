@@ -22,81 +22,14 @@ from argon.common import _namedtuple, _struct
 from argon.data import *
 
 class _Frame:
-    def __repr__(self):
-        return self.__class__.__name__
+    __slots__ = "channel", "_values"
 
-    def emit(self, buff, offset, channel, fields):
-        offset, size_offset = buff.skip(offset, 4)
-        offset = buff.pack(offset, 4, "!BBH", 2, 0, channel)
+    def __init__(self, channel, values):
+        self.channel = channel
+        self._values = values
 
-        offset = self.emit_body(buff, offset, fields)
-
-        size = offset - size_offset
-        buff.pack(size_offset, 4, "!I", size)
-
-        return offset
-
-    def emit_body(self, buff, offset, fields):
-        raise NotImplementedError()
-
-    def parse(self, buff, offset):
-        offset, size, _, _, channel = buff.unpack(offset, 8, "!IBBH")
-        offset, fields = self.parse_body(buff, offset)
-
-        return offset, channel, fields
-
-    def parse_body(self, buff, offset):
-        raise NotImplementedError()
-
-class OpenFrame(_Frame):
-    def __init__(self):
-        self._performative_code = UnsignedLong(0 << 32 | 0x00000010)
-
-    def emit_body(self, buff, offset, fields):
-        return emit_data(buff, offset, fields._values, self._performative_code)
-
-    def parse_body(self, buff, offset):
-        #offset, values = self._performative.parse(buff, offset)
-        offset, values, descriptor = parse_data(buff, offset)
-        return offset, OpenFrameFields(*values)
-
-class CloseFrame(_Frame):
-    def __init__(self):
-        self._performative_code = UnsignedLong(0 << 32 | 0x00000018)
-
-    def emit_body(self, buff, offset, fields):
-        return emit_data(buff, offset, fields._values, self._performative_code)
-
-    def parse_body(self, buff, offset):
-        #offset, values = self._performative.parse(buff, offset)
-        offset, values, descriptor = parse_data(buff, offset)
-        return offset, CloseFrameFields(*values)
-
-_open_frame = OpenFrame()
-_close_frame = CloseFrame()
-
-_frames_by_performative_code = {
-    UnsignedLong(0 << 32 | 0x00000010): _open_frame,
-    UnsignedLong(0 << 32 | 0x00000018): _close_frame,
-}
-
-def _get_frame_for_performative_code(code):
-    try:
-        return _frames_by_performative_code[code]
-    except KeyError:
-        raise Exception("No frame for performative code 0x{:02X}".format(code))
-
-class _FrameFields:
-    __slots__ = ("_values",)
-
-    def __init__(self, size, *args, **kwargs):
-        self._values = [None] * size
-
-        for i, arg in enumerate(args):
-            self._values[i] = arg
-
-        for key, value in kwargs.items():
-            setattr(self, key, value)
+        if self._values is None:
+            self._values = []
 
     def __hash__(self):
         return hash(self._values)
@@ -105,54 +38,95 @@ class _FrameFields:
         return self._values == other._values
 
     def __repr__(self):
-        return self._values.__repr__()
+        args = self.__class__.__name__, self.channel, ", ".join(self._values)
+        return "{}({}, {})".format(*args)
 
-def _field(index):
+    def _emit(self, buff, offset):
+        offset, size_offset = buff.skip(offset, 4)
+
+        offset = buff.pack(offset, 4, "!BBH", 2, 0, self.channel)
+        offset = emit_data(buff, offset, self._values, self._performative_code)
+
+        size = offset - size_offset
+        buff.pack(size_offset, 4, "!I", size)
+
+        return offset
+
+    def _parse(self, buff, offset):
+        offset, size, _, _, channel = buff.unpack(offset, 8, "!IBBH")
+        offset, values, descriptor = parse_data(buff, offset)
+
+        self._values = values
+
+        return offset
+
+def _frame_property(index):
     def get(obj):
-        return obj._values[index]
+        try:
+            return obj._values[index]
+        except IndexError:
+            return None
 
     def set_(obj, value):
-        obj._values[index] = value
+        try:
+            obj._values[index] = value
+        except IndexError:
+            obj._values += ([None] * (index - len(values))) + [value]
 
     return property(get, set_)
 
-class OpenFrameFields(_FrameFields):
-    __slots__ = ()
+class OpenFrame(_Frame):
+    _performative_code = UnsignedLong(0 << 32 | 0x00000010)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(10, *args, **kwargs)
+    def __init__(self, channel, values=None):
+        super().__init__(channel, values)
 
-    container_id = _field(0)
-    hostname = _field(1)
-    max_frame_size = _field(2)
-    channel_max = _field(3)
-    idle_timeout = _field(4)
-    outgoing_locales = _field(5)
-    incoming_locales = _field(6)
-    offered_capabilities = _field(7)
-    desired_capabilities = _field(8)
-    properties = _field(9)
+    container_id = _frame_property(0)
+    hostname = _frame_property(1)
+    max_frame_size = _frame_property(2)
+    channel_max = _frame_property(3)
+    idle_timeout = _frame_property(4)
+    outgoing_locales = _frame_property(5)
+    incoming_locales = _frame_property(6)
+    offered_capabilities = _frame_property(7)
+    desired_capabilities = _frame_property(8)
+    properties = _frame_property(9)
 
-class CloseFrameFields(_FrameFields):
-    __slots__ = ()
+class CloseFrame(_Frame):
+    _performative_code = UnsignedLong(0 << 32 | 0x00000018)
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(1, *args, **kwargs)
+    def __init__(self, channel, values=None):
+        super().__init__(channel, values)
 
-    error = _field(0)
+    error = _frame_property(0)
+
+_frame_classes_by_performative_code = {
+    UnsignedLong(0 << 32 | 0x00000010): OpenFrame,
+    UnsignedLong(0 << 32 | 0x00000018): CloseFrame,
+}
+
+def _get_frame_for_performative_code(code):
+    try:
+        return _frames_by_performative_code[code]
+    except KeyError:
+        raise Exception("No frame for performative code 0x{:02X}".format(code))
+
+def emit_frame(buff, offset, frame):
+    return frame._emit(buff, offset)
 
 def parse_frame(buff, offset):
-    offset, size, channel = self._parse_header(buff, offset)
-
-    # size XXX !
-
-    offset, fields = self.parse_body(buff, offset)
-
-    return offset, channel, fields
-
-def _parse_header(buff, offset):
     offset, size, _, _, channel = buff.unpack(offset, 8, "!IBBH")
-    return offset, channel
+
+    assert len(buff) > offset + size
+
+    offset, values, descriptor = parse_data(buff, offset)
+
+    try:
+        frame_class = _frame_classes_by_performative_code[descriptor]
+    except KeyError:
+        raise Exception("No frame for performative code 0x{:02X}".format(code))
+
+    return offset, frame_class(channel, values)
 
 # BeginFields = _namedtuple("BeginFields",
 #                           ("remote_channel", "next_outgoing_id", "incoming_window",

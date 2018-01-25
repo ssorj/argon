@@ -65,7 +65,7 @@ def _main():
     offset = 0
     
     while offset < end:
-        offset, value = parse_data(buff, offset)
+        offset, value, descriptor = parse_data(buff, offset)
 
     assert offset == end
         

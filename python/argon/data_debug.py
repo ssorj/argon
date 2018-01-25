@@ -21,6 +21,10 @@ from argon.common import *
 from argon.common import _hex, _micropython, _shorten, _time, _uuid_bytes
 from argon.data import *
 
+def _data_hex(octets):
+    o = _hex(octets)
+    return "{} {}".format(o[0:2], o[2:])
+
 class _DescribedValue:
     def __init__(self, descriptor, value):
         self.descriptor = descriptor
@@ -117,7 +121,7 @@ _input_values += [
 ]
 
 def _main():
-    debug = False
+    debug = True
 
     buff = Buffer()
     offset = 0
@@ -137,7 +141,7 @@ def _main():
         start = offset
         offset = emit_data(buff, offset, value, descriptor)
 
-        octets = _hex(buff[start:offset])
+        octets = _data_hex(buff[start:offset])
 
         output_octets.append(octets)
 
@@ -163,7 +167,7 @@ def _main():
         offset, output_value, output_descriptor = parse_data(buff, offset)
 
         if debug:
-            print("Parsed {}".format(_hex(buff[start:offset])))
+            print("Parsed {}".format(_data_hex(buff[start:offset])))
 
         #print(111, repr(output_value), type(output_value), "==", repr(value), type(output_value))
         
