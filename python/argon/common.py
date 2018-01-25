@@ -37,9 +37,9 @@ except ImportError:
     import time as _time
 
 try:
-    import urandom as random
+    import urandom as _random
 except ImportError:
-    import random
+    import random as _random
 
 class Buffer:
     def __init__(self):
@@ -109,13 +109,13 @@ def _hex(data):
     return "".join(["{:02x}".format(x) for x in data])
 
 def _uuid_bytes():
-    random.seed(round(_time.time() * 1000))
+    _random.seed(round(_time.time() * 1000))
 
     values = (
-        random.getrandbits(32),
-        random.getrandbits(32),
-        random.getrandbits(32),
-        random.getrandbits(32),
+        _random.getrandbits(32),
+        _random.getrandbits(32),
+        _random.getrandbits(32),
+        _random.getrandbits(32),
     )
 
     return _struct.pack("IIII", *values)

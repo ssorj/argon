@@ -28,6 +28,7 @@ class _Frame:
     def emit(self, buff, offset, channel, fields):
         offset, size_offset = buff.skip(offset, 4)
         offset = buff.pack(offset, 4, "!BBH", 2, 0, channel)
+
         offset = self.emit_body(buff, offset, fields)
 
         size = offset - size_offset
@@ -49,10 +50,11 @@ class _Frame:
 
 class OpenFrame(_Frame):
     def __init__(self):
-        self._performative = ListType(UnsignedLong(0 << 32 | 0x00000010))
+        self._performative = ListType()
+        self._performative_code = UnsignedLong(0 << 32 | 0x00000010)
 
     def emit_body(self, buff, offset, fields):
-        return self._performative.emit(buff, offset, fields._values)
+        return self._performative.emit(buff, offset, fields._values, self._performative_code)
 
     def parse_body(self, buff, offset):
         #offset, values = self._performative.parse(buff, offset)
@@ -61,10 +63,11 @@ class OpenFrame(_Frame):
 
 class CloseFrame(_Frame):
     def __init__(self):
-        self._performative = ListType(UnsignedLong(0 << 32 | 0x00000018))
+        self._performative = ListType()
+        self._performative_code = UnsignedLong(0 << 32 | 0x00000018)
 
     def emit_body(self, buff, offset, fields):
-        return self._performative.emit(buff, offset, fields._values)
+        return self._performative.emit(buff, offset, fields._values, self._performative_code)
 
     def parse_body(self, buff, offset):
         #offset, values = self._performative.parse(buff, offset)
@@ -142,9 +145,10 @@ class CloseFrameFields(_FrameFields):
 
 def parse_frame(buff, offset):
     offset, size, channel = self._parse_header(buff, offset)
-    offset, fields = self.parse_body(buff, offset)
 
     # size XXX !
+
+    offset, fields = self.parse_body(buff, offset)
 
     return offset, channel, fields
 

@@ -18,38 +18,61 @@
 #
 
 from argon.common import *
-from argon.common import _struct, _hex, _namedtuple, _uuid_bytes
+from argon.common import _struct
+
+class UnsignedByte(int): pass
+class UnsignedShort(int): pass
+class UnsignedInt(int): pass
+class UnsignedLong(int): pass
+class Byte(int): pass
+class Short(int): pass
+class Int(int): pass
+class Float(float): pass
+class Char(str): pass
+class Timestamp(float): pass
+class Uuid(bytes): pass
+class Symbol(str): pass
+
+class Array:
+    def __init__(self, elem_type, elems, elem_descriptor=None):
+        self._elem_type = elem_type
+        self._elem_descriptor = elem_descriptor
+        self._elems = elems
+
+    def __eq__(self, other):
+        return self._elems == other._elems
+
+    def __repr__(self):
+        return "{}({}, {})".format(self.__class__.__name__, self._elem_type.__name__, self._elems)
 
 class _DataType:
-    def __init__(self, name, python_type, format_code, descriptor=None):
-        assert name is not None
+    def __init__(self, python_type, format_code):
         assert python_type is not None
         assert format_code is not None
 
-        self.name = name
         self.python_type = python_type
         self.format_code = format_code
-        self.descriptor = descriptor
 
     def __repr__(self):
-        return self.name
+        return self.python_type.__name__
 
-    def emit(self, buff, offset, value):
+    def emit(self, buff, offset, value, descriptor=None):
         assert isinstance(value, self.python_type)
 
-        offset, format_code_offset = self.emit_constructor(buff, offset)
+        offset, format_code_offset = self.emit_constructor(buff, offset, descriptor)
         offset, format_code = self.emit_value(buff, offset, value)
 
         buff.pack(format_code_offset, 1, "!B", format_code)
 
         return offset
 
-    def emit_constructor(self, buff, offset):
-        if self.descriptor is not None:
+    def emit_constructor(self, buff, offset, descriptor):
+        if descriptor is not None:
             offset = buff.pack(offset, 1, "!B", 0x00)
-            offset = emit_data(buff, offset, self.descriptor)
+            offset = emit_data(buff, offset, descriptor)
 
-        offset, format_code_offset = buff.skip(offset, 1) # The format code is filled in later
+        # The format code is filled in after the value is emitted
+        offset, format_code_offset = buff.skip(offset, 1)
 
         return offset, format_code_offset
 
@@ -59,9 +82,9 @@ class _DataType:
     def emit_value_long(self, buff, offset, value):
         raise NotImplementedError()
 
-class NullType(_DataType):
-    def __init__(self, descriptor=None):
-        super().__init__("null", type(None), 0x40, descriptor=descriptor)
+class _NullType(_DataType):
+    def __init__(self):
+        super().__init__(type(None), 0x40)
 
     def emit_value_long(self, buff, offset, value):
         return offset, self.format_code
@@ -69,9 +92,9 @@ class NullType(_DataType):
     def parse_value(self, buff, offset, format_code):
         return offset, None
 
-class BooleanType(_DataType):
-    def __init__(self, descriptor=None):
-        super().__init__("boolean", bool, 0x56, descriptor=descriptor)
+class _BooleanType(_DataType):
+    def __init__(self):
+        super().__init__(bool, 0x56)
 
     def emit_value(self, buff, offset, value):
         if value is True: return offset, 0x41
@@ -94,8 +117,8 @@ class BooleanType(_DataType):
         return offset, value == 0x01
 
 class _FixedWidthType(_DataType):
-    def __init__(self, name, python_type, format_code, format_string, descriptor=None):
-        super().__init__(name, python_type, format_code, descriptor=descriptor)
+    def __init__(self, python_type, format_code, format_string):
+        super().__init__(python_type, format_code)
 
         self.format_string = format_string
         self.format_size = _struct.calcsize(self.format_string)
@@ -107,17 +130,25 @@ class _FixedWidthType(_DataType):
     def parse_value(self, buff, offset, format_code):
         return buff.unpack(offset, self.format_size, self.format_string)
 
-class UnsignedByteType(_FixedWidthType):
-    def __init__(self, descriptor=None):
-        super().__init__("ubyte", int, 0x50, "!B", descriptor=descriptor)
+class _UnsignedByteType(_FixedWidthType):
+    def __init__(self):
+        super().__init__(UnsignedByte, 0x50, "!B")
 
-class UnsignedShortType(_FixedWidthType):
-    def __init__(self, descriptor=None):
-        super().__init__("ushort", int, 0x60, "!H", descriptor=descriptor)
+    def parse_value(self, buff, offset, format_code):
+        offset, value = super().parse_value(buff, offset, format_code)
+        return offset, UnsignedByte(value)
 
-class UnsignedIntType(_FixedWidthType):
-    def __init__(self, descriptor=None):
-        super().__init__("uint", int, 0x70, "!I", descriptor=descriptor)
+class _UnsignedShortType(_FixedWidthType):
+    def __init__(self):
+        super().__init__(UnsignedShort, 0x60, "!H")
+
+    def parse_value(self, buff, offset, format_code):
+        offset, value = super().parse_value(buff, offset, format_code)
+        return offset, UnsignedShort(value)
+
+class _UnsignedIntType(_FixedWidthType):
+    def __init__(self):
+        super().__init__(UnsignedInt, 0x70, "!I")
 
     def emit_value(self, buff, offset, value):
         if value == 0: return offset, 0x43
@@ -126,14 +157,18 @@ class UnsignedIntType(_FixedWidthType):
         return self.emit_value_long(buff, offset, value)
 
     def parse_value(self, buff, offset, format_code):
-        if format_code == 0x43: return offset, 0
-        if format_code == 0x52: return buff.unpack(offset, 1, "!B")
+        if format_code == 0x43:
+            value = 0
+        elif format_code == 0x52:
+            offset, value = buff.unpack(offset, 1, "!B")
+        else:
+            offset, value = super().parse_value(buff, offset, format_code)
 
-        return super().parse_value(buff, offset, format_code)
+        return offset, UnsignedInt(value)
 
-class UnsignedLongType(_FixedWidthType):
-    def __init__(self, descriptor=None):
-        super().__init__("ulong", int, 0x80, "!Q", descriptor=descriptor)
+class _UnsignedLongType(_FixedWidthType):
+    def __init__(self):
+        super().__init__(UnsignedLong, 0x80, "!Q")
 
     def emit_value(self, buff, offset, value):
         if value == 0: return offset, 0x44
@@ -142,22 +177,34 @@ class UnsignedLongType(_FixedWidthType):
         return self.emit_value_long(buff, offset, value)
 
     def parse_value(self, buff, offset, format_code):
-        if format_code == 0x44: return offset, 0
-        if format_code == 0x53: return buff.unpack(offset, 1, "!B")
+        if format_code == 0x44:
+            value = 0
+        elif format_code == 0x53:
+            offset, value = buff.unpack(offset, 1, "!B")
+        else:
+            offset, value = super().parse_value(buff, offset, format_code)
 
-        return super().parse_value(buff, offset, format_code)
+        return offset, UnsignedLong(value)
 
-class ByteType(_FixedWidthType):
-    def __init__(self, descriptor=None):
-        super().__init__("byte", int, 0x51, "!b", descriptor=descriptor)
+class _ByteType(_FixedWidthType):
+    def __init__(self):
+        super().__init__(Byte, 0x51, "!b")
 
-class ShortType(_FixedWidthType):
-    def __init__(self, descriptor=None):
-        super().__init__("short", int, 0x61, "!h", descriptor=descriptor)
+    def parse_value(self, buff, offset, format_code):
+        offset, value = super().parse_value(buff, offset, format_code)
+        return offset, Byte(value)
 
-class IntType(_FixedWidthType):
-    def __init__(self, descriptor=None):
-        super().__init__("int", int, 0x71, "!i", descriptor=descriptor)
+class _ShortType(_FixedWidthType):
+    def __init__(self):
+        super().__init__(Short, 0x61, "!h")
+
+    def parse_value(self, buff, offset, format_code):
+        offset, value = super().parse_value(buff, offset, format_code)
+        return offset, Short(value)
+
+class _IntType(_FixedWidthType):
+    def __init__(self):
+        super().__init__(Int, 0x71, "!i")
 
     def emit_value(self, buff, offset, value):
         if value >= -128 and value <= 127:
@@ -166,13 +213,16 @@ class IntType(_FixedWidthType):
         return self.emit_value_long(buff, offset, value)
 
     def parse_value(self, buff, offset, format_code):
-        if format_code == 0x54: return buff.unpack(offset, 1, "!b")
+        if format_code == 0x54:
+            offset, value = buff.unpack(offset, 1, "!b")
+        else:
+            offset, value = super().parse_value(buff, offset, format_code)
 
-        return super().parse_value(buff, offset, format_code)
+        return offset, Int(value)
 
-class LongType(_FixedWidthType):
-    def __init__(self, descriptor=None):
-        super().__init__("long", int, 0x81, "!q", descriptor=descriptor)
+class _LongType(_FixedWidthType):
+    def __init__(self):
+        super().__init__(int, 0x81, "!q")
 
     def emit_value(self, buff, offset, value):
         if value >= -128 and value <= 127:
@@ -185,17 +235,21 @@ class LongType(_FixedWidthType):
 
         return super().parse_value(buff, offset, format_code)
 
-class FloatType(_FixedWidthType):
-    def __init__(self, descriptor=None):
-        super().__init__("float", float, 0x72, "!f", descriptor=descriptor)
+class _FloatType(_FixedWidthType):
+    def __init__(self):
+        super().__init__(Float, 0x72, "!f")
 
-class DoubleType(_FixedWidthType):
-    def __init__(self, descriptor=None):
-        super().__init__("double", float, 0x82, "!d", descriptor=descriptor)
+    def parse_value(self, buff, offset, format_code):
+        offset, value = super().parse_value(buff, offset, format_code)
+        return offset, Float(value)
 
-class CharType(_FixedWidthType):
-    def __init__(self, descriptor=None):
-        super().__init__("char", str, 0x73, "!4s", descriptor=descriptor)
+class _DoubleType(_FixedWidthType):
+    def __init__(self):
+        super().__init__(float, 0x82, "!d")
+
+class _CharType(_FixedWidthType):
+    def __init__(self):
+        super().__init__(Char, 0x73, "!4s")
 
     def emit_value_long(self, buff, offset, value):
         value = value.encode("utf-32-be")
@@ -203,15 +257,19 @@ class CharType(_FixedWidthType):
 
     def parse_value(self, buff, offset, format_code):
         offset, value = super().parse_value(buff, offset, format_code)
-        return offset, value.decode("utf-32-be")
+        return offset, Char(value.decode("utf-32-be"))
 
-class UuidType(_FixedWidthType):
-    def __init__(self, descriptor=None):
-        super().__init__("uuid", bytes, 0x98, "!16s", descriptor=descriptor)
+class _UuidType(_FixedWidthType):
+    def __init__(self):
+        super().__init__(Uuid, 0x98, "!16s")
 
-class TimestampType(_FixedWidthType):
-    def __init__(self, descriptor=None):
-        super().__init__("timestamp", float, 0x83, "!q", descriptor=descriptor)
+    def parse_value(self, buff, offset, format_code):
+        offset, value = super().parse_value(buff, offset, format_code)
+        return offset, Uuid(value)
+
+class _TimestampType(_FixedWidthType):
+    def __init__(self):
+        super().__init__(Timestamp, 0x83, "!q")
 
     def emit_value_long(self, buff, offset, value):
         value = int(round(value * 1000))
@@ -219,20 +277,20 @@ class TimestampType(_FixedWidthType):
 
     def parse_value(self, buff, offset, format_code):
         offset, value = super().parse_value(buff, offset, format_code)
-        return offset, round(value / 1000, 3)
+        return offset, Timestamp(round(value / 1000, 3))
 
 class _VariableWidthType(_DataType):
-    def __init__(self, name, python_type, short_format_code, long_format_code, descriptor=None):
-        super().__init__(name, python_type, long_format_code, descriptor=descriptor)
+    def __init__(self, python_type, short_format_code, long_format_code):
+        super().__init__(python_type, long_format_code)
 
         self.short_format_code = short_format_code
         self.long_format_code = long_format_code
 
     def encode(self, value):
-        return value
+        raise NotImplementedError()
 
     def decode(self, octets):
-        return octets
+        raise NotImplementedError()
 
     def emit_value(self, buff, offset, value):
         if len(value) < 256:
@@ -269,13 +327,19 @@ class _VariableWidthType(_DataType):
 
         return offset, value
 
-class BinaryType(_VariableWidthType):
-    def __init__(self, descriptor=None):
-        super().__init__("binary", bytes, 0xa0, 0xb0, descriptor=descriptor)
+class _BinaryType(_VariableWidthType):
+    def __init__(self):
+        super().__init__(bytes, 0xa0, 0xb0)
 
-class StringType(_VariableWidthType):
-    def __init__(self, descriptor=None):
-        super().__init__("string", str, 0xa1, 0xb1, descriptor=descriptor)
+    def encode(self, value):
+        return value
+
+    def decode(self, octets):
+        return bytes(octets)
+
+class _StringType(_VariableWidthType):
+    def __init__(self):
+        super().__init__(str, 0xa1, 0xb1)
 
     def encode(self, value):
         return value.encode("utf-8")
@@ -289,19 +353,19 @@ class StringType(_VariableWidthType):
 
         return self.emit_value_long(buff, offset, value)
 
-class SymbolType(_VariableWidthType):
-    def __init__(self, descriptor=None):
-        super().__init__("symbol", str, 0xa3, 0xb3, descriptor=descriptor)
+class _SymbolType(_VariableWidthType):
+    def __init__(self):
+        super().__init__(Symbol, 0xa3, 0xb3)
 
     def encode(self, value):
         return value.encode("ascii")
 
     def decode(self, octets):
-        return bytes(octets).decode("ascii")
+        return Symbol(bytes(octets).decode("ascii"))
 
 class _CollectionType(_DataType):
-    def __init__(self, name, python_type, short_format_code, long_format_code, descriptor=None):
-        super().__init__(name, python_type, long_format_code, descriptor=descriptor)
+    def __init__(self, python_type, short_format_code, long_format_code):
+        super().__init__(python_type, long_format_code)
 
         self.short_format_code = short_format_code
         self.long_format_code = long_format_code
@@ -318,8 +382,8 @@ class _CollectionType(_DataType):
         raise Exception()
 
 class _CompoundType(_CollectionType):
-    def __init__(self, name, python_type, short_format_code, long_format_code, descriptor=None):
-        super().__init__(name, python_type, short_format_code, long_format_code, descriptor=descriptor)
+    def __init__(self, python_type, short_format_code, long_format_code):
+        super().__init__(python_type, short_format_code, long_format_code)
 
     def encode_into(self, buff, offset, value):
         for item in value:
@@ -354,13 +418,13 @@ class _CompoundType(_CollectionType):
 
         return offset, value
 
-class ListType(_CompoundType):
-    def __init__(self, descriptor=None):
-        super().__init__("list", list, 0xc0, 0xd0, descriptor=descriptor)
+class _ListType(_CompoundType):
+    def __init__(self):
+        super().__init__(list, 0xc0, 0xd0)
 
-class MapType(_CompoundType):
-    def __init__(self, descriptor=None):
-        super().__init__("map", dict, 0xc1, 0xd1, descriptor=descriptor)
+class _MapType(_CompoundType):
+    def __init__(self):
+        super().__init__(dict, 0xc1, 0xd1)
 
     def encode_into(self, buff, offset, value):
         elems = list()
@@ -379,37 +443,39 @@ class MapType(_CompoundType):
 
         return offset, pairs
 
-class ArrayType(_CollectionType):
-    def __init__(self, element_type, descriptor=None):
-        super().__init__("array", list, 0xf0, 0xe0, descriptor=descriptor)
-
-        self.element_type = element_type
-
-    def __repr__(self):
-        return "{}<{}>".format(self.name, self.element_type)
+class _ArrayType(_CollectionType):
+    def __init__(self):
+        super().__init__(Array, 0xf0, 0xe0)
 
     def encode_into(self, buff, offset, value):
-        for elem in value:
-            offset, format_code = self.element_type.emit_value_long(buff, offset, elem)
+        elem_type = _get_data_type_for_python_type(value._elem_type)
 
-        return offset, len(value)
+        for elem in value._elems:
+            offset, format_code = elem_type.emit_value_long(buff, offset, elem)
 
-    def decode_from(self, buff, offset, count, element_type, element_format_code):
-        value = [None] * count
+        return offset, len(value._elems)
+
+    def decode_from(self, buff, offset, count, elem_type, elem_format_code):
+        elems = [None] * count
 
         for i in range(count):
-            offset, value[i] = element_type.parse_value(buff, offset, element_format_code)
+            offset, elems[i] = elem_type.parse_value(buff, offset, elem_format_code)
 
-        return offset, value
+        # XXX Need to recover descriptor
+
+        elem_python_type = int # XXX
+
+        return offset, Array(elem_python_type, elems)
 
     def emit_value_long(self, buff, offset, value):
-        assert self.element_type is not None
-
         offset, size_offset = buff.skip(offset, 4)
         offset, count_offset = buff.skip(offset, 4)
 
-        offset, element_format_code_offset = self.element_type.emit_constructor(buff, offset)
-        buff.pack(element_format_code_offset, 1, "!B", self.element_type.format_code)
+        elem_type = _get_data_type_for_python_type(value._elem_type)
+        elem_descriptor = value._elem_descriptor
+
+        offset, elem_format_code_offset = elem_type.emit_constructor(buff, offset, elem_descriptor)
+        buff.pack(elem_format_code_offset, 1, "!B", elem_type.format_code)
 
         offset, count = self.encode_into(buff, offset, value)
 
@@ -420,41 +486,35 @@ class ArrayType(_CollectionType):
 
     def parse_value(self, buff, offset, format_code):
         offset, size, count = self.parse_size_and_count(buff, offset, format_code)
-        offset, element_format_code = buff.unpack(offset, 1, "!B")
+        offset, elem_format_code = buff.unpack(offset, 1, "!B")
 
-        element_type = _get_data_type_for_format_code(element_format_code)
+        elem_type = _get_data_type_for_format_code(elem_format_code)
 
-        offset, value = self.decode_from(buff, offset, count, element_type, element_format_code)
+        offset, value = self.decode_from(buff, offset, count, elem_type, elem_format_code)
 
         return offset, value
 
-_null_type = NullType()
-_boolean_type = BooleanType()
-
-_ubyte_type = UnsignedByteType()
-_ushort_type = UnsignedShortType()
-_uint_type = UnsignedIntType()
-_ulong_type = UnsignedLongType()
-
-_byte_type = ByteType()
-_short_type = ShortType()
-_int_type = IntType()
-_long_type = LongType()
-
-_float_type = FloatType()
-_double_type = DoubleType()
-
-_char_type = CharType()
-_timestamp_type = TimestampType()
-_uuid_type = UuidType()
-
-_binary_type = BinaryType()
-_string_type = StringType()
-_symbol_type = SymbolType()
-
-_list_type = ListType()
-_map_type = MapType()
-_array_type = ArrayType(None)
+_null_type = _NullType()
+_boolean_type = _BooleanType()
+_ubyte_type = UnsignedByte._data_type = _UnsignedByteType()
+_ushort_type = UnsignedShort._data_type = _UnsignedShortType()
+_uint_type = UnsignedInt._data_type = _UnsignedIntType()
+_ulong_type = UnsignedLong._data_type = _UnsignedLongType()
+_byte_type = Byte._data_type = _ByteType()
+_short_type = Short._data_type = _ShortType()
+_int_type = Int._data_type = _IntType()
+_long_type = _LongType()
+_float_type = Float._data_type = _FloatType()
+_double_type = _DoubleType()
+_char_type = Char._data_type = _CharType()
+_timestamp_type = Timestamp._data_type = _TimestampType()
+_uuid_type = Uuid._data_type = _UuidType()
+_binary_type = _BinaryType()
+_string_type = _StringType()
+_symbol_type = Symbol._data_type = _SymbolType()
+_list_type = _ListType()
+_map_type = _MapType()
+_array_type = Array._data_type = _ArrayType()
 
 _data_types_by_format_code = {
     0x40: _null_type,
@@ -500,36 +560,15 @@ def _get_data_type_for_format_code(format_code):
     except KeyError:
         raise Exception("No data type for format code 0x{:02X}".format(format_code))
 
-class UnsignedByte(int):
-    __argon_type = _ubyte_type
-
-class UnsignedShort(int):
-    __argon_type = _ushort_type
-
-class UnsignedInt(int):
-    __argon_type = _uint_type
-
-class UnsignedLong(int):
-    __argon_type = _ulong_type
-
-class Byte(int):
-    __argon_type = _byte_type
-
-class Short(int):
-    __argon_type = _short_type
-
-class Int(int):
-    __argon_type = _int_type
-
-class Float(float):
-    __argon_type = _float_type
-
-class Symbol(str):
-    __argon_type = _symbol_type
-
 def _get_data_type_for_python_type(python_type):
+    if hasattr(python_type, "_data_type"):
+        return python_type._data_type
+
     if python_type is type(None):
         return _null_type
+
+    if issubclass(python_type, bool):
+        return _boolean_type
 
     if issubclass(python_type, int):
         return _long_type
@@ -549,23 +588,17 @@ def _get_data_type_for_python_type(python_type):
     if issubclass(python_type, dict):
         return _map_type
 
-    if hasattr(python_type, "__argon_type"):
-        return python_type.__argon_type
-
     raise Exception("No data type for Python type {}".format(python_type))
 
-def get_data_type(value):
-    return _get_data_type_for_python_type(type(value))
-
-def emit_data(buff, offset, value):
-    data_type = get_data_type(value)
-    return data_type.emit(buff, offset, value)
+def emit_data(buff, offset, value, descriptor=None):
+    data_type = _get_data_type_for_python_type(type(value))
+    return data_type.emit(buff, offset, value, descriptor)
 
 def parse_data(buff, offset):
     offset, format_code, descriptor = _parse_constructor(buff, offset)
     data_type = _get_data_type_for_format_code(format_code)
     offset, value = data_type.parse_value(buff, offset, format_code)
-    
+
     return offset, value, descriptor
 
 def _parse_constructor(buff, offset):
