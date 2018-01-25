@@ -50,11 +50,10 @@ class _Frame:
 
 class OpenFrame(_Frame):
     def __init__(self):
-        self._performative = ListType()
         self._performative_code = UnsignedLong(0 << 32 | 0x00000010)
 
     def emit_body(self, buff, offset, fields):
-        return self._performative.emit(buff, offset, fields._values, self._performative_code)
+        return emit_data(buff, offset, fields._values, self._performative_code)
 
     def parse_body(self, buff, offset):
         #offset, values = self._performative.parse(buff, offset)
@@ -63,11 +62,10 @@ class OpenFrame(_Frame):
 
 class CloseFrame(_Frame):
     def __init__(self):
-        self._performative = ListType()
         self._performative_code = UnsignedLong(0 << 32 | 0x00000018)
 
     def emit_body(self, buff, offset, fields):
-        return self._performative.emit(buff, offset, fields._values, self._performative_code)
+        return emit_data(buff, offset, fields._values, self._performative_code)
 
     def parse_body(self, buff, offset):
         #offset, values = self._performative.parse(buff, offset)
