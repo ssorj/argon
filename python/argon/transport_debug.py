@@ -1,72 +1,145 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
 import socket as _socket
 import sys as _sys
 
 from argon.common import *
-from argon.common import _hex, _time, _struct
+from argon.common import _hex, _time, _select, _struct
 from argon.frames import *
+from argon.frames import _frame_hex
 
-def _log_send(data):
-    print("S", _hex(data), data)
+def _log_send(octets, obj):
+    print("S", octets)
+    print(" ", obj)
 
-def _log_receive(data):
-    print("R", _hex(data), data)
+def _log_receive(octets, obj):
+    print("R", octets)
+    print(" ", obj)
 
 def _shake_hands(sock):
     protocol_header = _struct.pack("!4sBBBB", b"AMQP", 0, 1, 0, 0)
 
-    _log_send(protocol_header)
+    _log_send(_hex(protocol_header), str(protocol_header))
 
     sock.sendall(protocol_header)
 
     response = sock.recv(8, _socket.MSG_WAITALL)
 
-    _log_receive(response)
+    _log_receive(_hex(response), str(response))
 
     assert response == protocol_header
 
 def _main():
-    open_frame = OpenFrame()
-    close_frame = CloseFrame()
+    output_frames = list()
 
-    container_id = "test"
+    frame = OpenFrame(0)
+    frame.container_id = "abc123"
+
+    output_frames.append(frame)
+
+    frame = CloseFrame(0)
+
+    output_frames.append(frame)
 
     address = "localhost", 5672
-    channel = 1
 
     input_buff = Buffer()
-    input_offset = 0
+    read_offset = 0
+    parse_offset = 0
 
     output_buff = Buffer()
-    output_offset = 0
+    emit_offset = 0
+    write_offset = 0
+
+    # XXX Hack
+    input_buff.ensure(10240)
 
     with _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM) as sock:
         sock.connect(address)
 
         _shake_hands(sock)
 
-        for i in range(2):
-            input_start = input_offset
-            output_start = output_offset
+        sock.setblocking(False)
 
-            output_offset = open_frame.emit(output_buff, output_offset, channel, container_id)
-            output_offset = close_frame.emit(output_buff, output_offset, channel)
+        poller = _select.poll()
+        poller.register(sock)
 
-            output_data = output_buff[output_start:output_offset]
+        while True:
+            events = poller.poll(1000)
 
-            _log_send(output_data)
+            flags = events[0][1]
 
-            sock.sendall(output_data)
+            if flags & _select.POLLERR:
+                raise Exception()
 
-            input_buff.ensure(4096)
-            input_offset += sock.recv_into(input_buff.view, 4096)
-            input_data = input_buff[input_start:input_offset]
+            if flags & _select.POLLHUP:
+                raise Exception()
 
-            _log_receive(input_data)
+            if flags & _select.POLLIN:
+                read_offset = _read_socket(input_buff, read_offset, sock)
 
-            if i == 1:
-                print("SUCCESS")
-                return
+            parse_offset = _parse_frames(input_buff, parse_offset, read_offset)
+            emit_offset = _emit_frames(output_buff, emit_offset, output_frames)
 
+            if flags & _select.POLLOUT:
+                write_offset = _write_socket(output_buff, write_offset, emit_offset, sock)
+
+def _read_socket(buff, offset, sock):
+    buff.ensure(offset + 1024)
+    return offset + sock.recv_into(buff[offset:], 1024)
+
+def _write_socket(buff, write_offset, emit_offset, sock):
+    return write_offset + sock.send(buff[write_offset:emit_offset])
+
+def _parse_frames(buff, offset, limit):
+    while offset < limit:
+        start = offset
+
+        if offset + 8 > limit:
+            return start
+
+        offset, size, channel = parse_frame_header(buff, offset)
+
+        if start + size > limit:
+            return start
+
+        offset, frame = parse_frame_body(buff, offset, channel)
+
+        _log_receive(_frame_hex(buff[start:offset]), frame)
+
+        if isinstance(frame, CloseFrame):
+            print("SUCCESS")
+            raise KeyboardInterrupt()
+
+    return offset
+
+def _emit_frames(buff, offset, output_frames):
+    while len(output_frames) > 0:
+        frame = output_frames.pop(0)
+
+        start = offset
+        offset = emit_frame(buff, offset, frame)
+
+        _log_send(_frame_hex(buff[start:offset]), frame)
+
+    return offset
 
 if __name__ == "__main__":
     try:

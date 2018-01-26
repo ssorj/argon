@@ -20,10 +20,7 @@
 from argon.common import *
 from argon.common import _hex, _micropython, _shorten, _time, _uuid_bytes
 from argon.data import *
-
-def _data_hex(octets):
-    o = _hex(octets)
-    return "{} {}".format(o[0:2], o[2:])
+from argon.data import _data_hex
 
 class _DescribedValue:
     def __init__(self, descriptor, value):

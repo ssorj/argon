@@ -18,7 +18,7 @@
 #
 
 from argon.common import *
-from argon.common import _struct
+from argon.common import _hex, _struct
 
 class UnsignedByte(int): pass
 class UnsignedShort(int): pass
@@ -595,6 +595,7 @@ def emit_data(buff, offset, value, descriptor=None):
     return data_type.emit(buff, offset, value, descriptor)
 
 def parse_data(buff, offset):
+    #print("parse_data", _data_hex(buff[offset:offset + 10]))
     offset, format_code, descriptor = _parse_constructor(buff, offset)
     data_type = _get_data_type_for_format_code(format_code)
     offset, value = data_type.parse_value(buff, offset, format_code)
@@ -610,3 +611,7 @@ def _parse_constructor(buff, offset):
         offset, format_code = buff.unpack(offset, 1, "!B")
 
     return offset, format_code, descriptor
+
+def _data_hex(octets):
+    o = _hex(octets)
+    return "{} {}".format(o[0:2], o[2:])

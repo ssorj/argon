@@ -18,7 +18,7 @@
 #
 
 from argon.common import *
-from argon.common import _namedtuple, _struct
+from argon.common import _hex
 from argon.data import *
 
 class _Frame:
@@ -38,7 +38,7 @@ class _Frame:
         return self._values == other._values
 
     def __repr__(self):
-        args = self.__class__.__name__, self.channel, ", ".join(self._values)
+        args = self.__class__.__name__, self.channel, self._values
         return "{}({}, {})".format(*args)
 
     def _emit(self, buff, offset):
@@ -49,14 +49,6 @@ class _Frame:
 
         size = offset - size_offset
         buff.pack(size_offset, 4, "!I", size)
-
-        return offset
-
-    def _parse(self, buff, offset):
-        offset, size, _, _, channel = buff.unpack(offset, 8, "!IBBH")
-        offset, values, descriptor = parse_data(buff, offset)
-
-        self._values = values
 
         return offset
 
@@ -71,7 +63,7 @@ def _frame_property(index):
         try:
             obj._values[index] = value
         except IndexError:
-            obj._values += ([None] * (index - len(values))) + [value]
+            obj._values += ([None] * (index - len(obj._values))) + [value]
 
     return property(get, set_)
 
@@ -115,18 +107,27 @@ def emit_frame(buff, offset, frame):
     return frame._emit(buff, offset)
 
 def parse_frame(buff, offset):
+    offset, size, channel = parse_frame_header(buff, offset)
+    return parse_frame_body(buff, offset, channel)
+
+def parse_frame_header(buff, offset):
     offset, size, _, _, channel = buff.unpack(offset, 8, "!IBBH")
+    return offset, size, channel
 
-    assert len(buff) > offset + size
-
+def parse_frame_body(buff, offset, channel):
     offset, values, descriptor = parse_data(buff, offset)
 
     try:
         frame_class = _frame_classes_by_performative_code[descriptor]
     except KeyError:
-        raise Exception("No frame for performative code 0x{:02X}".format(code))
+        raise Exception("No frame for performative code 0x{:02X}".format(descriptor))
 
     return offset, frame_class(channel, values)
+
+def _frame_hex(octets):
+    o = _hex(octets)
+    args = o[0:8], o[8:12], o[12:16], o[16:18], o[18:22], o[22:24], o[24:],
+    return "{} {} {} {} {} {} {}".format(*args)
 
 # BeginFields = _namedtuple("BeginFields",
 #                           ("remote_channel", "next_outgoing_id", "incoming_window",

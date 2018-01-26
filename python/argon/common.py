@@ -27,6 +27,16 @@ except ImportError:
     from ucollections import namedtuple as _namedtuple
 
 try:
+    import urandom as _random
+except ImportError:
+    import random as _random
+
+try:
+    import uselect as _select
+except ImportError:
+    import select as _select
+
+try:
     import ustruct as _struct
 except ImportError:
     import struct as _struct
@@ -35,11 +45,6 @@ try:
     import utime as _time
 except ImportError:
     import time as _time
-
-try:
-    import urandom as _random
-except ImportError:
-    import random as _random
 
 class Buffer:
     def __init__(self):

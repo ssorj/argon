@@ -20,11 +20,7 @@
 from argon.common import *
 from argon.common import _hex, _shorten, _time
 from argon.frames import *
-
-def _frame_hex(octets):
-    o = _hex(octets)
-    args = o[0:8], o[8:12], o[12:16], o[16:18], o[18:22], o[22:24], o[24:],
-    return "{} {} {} {} {} {} {}".format(*args)
+from argon.frames import _frame_hex
 
 _input_frames = [
     OpenFrame(0, ["test0"]),
