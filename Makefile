@@ -30,7 +30,7 @@ data-debug: data-debug-cpython data-debug-micropython
 data-test: data-test-cpython data-test-micropython
 
 .PHONY: frames-debug
-frames-debug: frames-debug-cpython
+frames-debug: frames-debug-cpython frames-debug-micropython
 
 .PHONY: %-debug-cpython
 %-debug-cpython:

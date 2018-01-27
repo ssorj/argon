@@ -83,12 +83,32 @@ class Buffer:
 
         return end
 
-    def pack(self, offset, size, format_string, *values):
-        self.ensure(offset + size)
+    if _micropython:
+        # XXX Hideous bad hack
 
-        _struct.pack_into(format_string, self.octets, offset, *values)
+        def pack(self, offset, size, format_string, *values):
+            from argon.data import UnsignedLong
 
-        return offset + size
+            self.ensure(offset + size)
+
+            new_values = list()
+
+            for value in values:
+                if isinstance(value, UnsignedLong):
+                    new_values.append(int.from_bytes(value.to_bytes(8, "big"), "big"))
+                else:
+                    new_values.append(value)
+
+            _struct.pack_into(format_string, self.octets, offset, *new_values)
+
+            return offset + size
+    else:
+        def pack(self, offset, size, format_string, *values):
+            self.ensure(offset + size)
+
+            _struct.pack_into(format_string, self.octets, offset, *values)
+
+            return offset + size
 
     def unpack(self, offset, size, format_string):
         assert len(self) > offset + size
