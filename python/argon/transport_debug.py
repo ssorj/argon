@@ -17,11 +17,10 @@
 # under the License.
 #
 
-import socket as _socket
 import sys as _sys
 
 from argon.common import *
-from argon.common import _hex, _time, _select, _struct
+from argon.common import _hex, _micropython, _time, _select, _socket, _struct
 from argon.frames import *
 from argon.frames import _frame_hex
 
@@ -38,9 +37,12 @@ def _shake_hands(sock):
 
     _log_send(_hex(protocol_header), str(protocol_header))
 
-    sock.sendall(protocol_header)
-
-    response = sock.recv(8, _socket.MSG_WAITALL)
+    if _micropython:
+        sock.write(protocol_header)
+        response = sock.read(8)
+    else:
+        sock.sendall(protocol_header)
+        response = sock.recv(8, _socket.MSG_WAITALL)
 
     _log_receive(_hex(response), str(response))
 
@@ -58,7 +60,7 @@ def _main():
 
     output_frames.append(frame)
 
-    address = "localhost", 5672
+    address = _socket.getaddrinfo("127.0.0.1", 5672)[0][-1]
 
     input_buff = Buffer()
     read_offset = 0
@@ -68,10 +70,9 @@ def _main():
     emit_offset = 0
     write_offset = 0
 
-    # XXX Hack
-    input_buff.ensure(10240)
+    sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
 
-    with _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM) as sock:
+    try:
         sock.connect(address)
 
         _shake_hands(sock)
@@ -87,10 +88,10 @@ def _main():
             flags = events[0][1]
 
             if flags & _select.POLLERR:
-                raise Exception()
+                raise Exception("POLLERR!")
 
             if flags & _select.POLLHUP:
-                raise Exception()
+                raise Exception("POLLHUP!")
 
             if flags & _select.POLLIN:
                 read_offset = _read_socket(input_buff, read_offset, sock)
@@ -100,10 +101,18 @@ def _main():
 
             if flags & _select.POLLOUT:
                 write_offset = _write_socket(output_buff, write_offset, emit_offset, sock)
+    finally:
+        sock.close()
 
 def _read_socket(buff, offset, sock):
+    start = offset
+
     buff.ensure(offset + 1024)
-    return offset + sock.recv_into(buff[offset:], 1024)
+
+    if _micropython:
+        return offset + sock.readinto(buff[offset:], 1024)
+    else:
+        return offset + sock.recv_into(buff[offset:], 1024)
 
 def _write_socket(buff, write_offset, emit_offset, sock):
     return write_offset + sock.send(buff[write_offset:emit_offset])

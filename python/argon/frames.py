@@ -20,6 +20,7 @@
 from argon.common import *
 from argon.common import _hex
 from argon.data import *
+from argon.data import _data_hex
 
 class _Frame:
     __slots__ = "channel", "_values"
@@ -111,10 +112,14 @@ def parse_frame(buff, offset):
     return parse_frame_body(buff, offset, channel)
 
 def parse_frame_header(buff, offset):
+    print("parse_frame_header", _frame_hex(buff[offset:offset + 20]), "...")
+
     offset, size, _, _, channel = buff.unpack(offset, 8, "!IBBH")
     return offset, size, channel
 
 def parse_frame_body(buff, offset, channel):
+    print("parse_frame_body", _data_hex(buff[offset:offset + 20]), "...")
+
     offset, values, descriptor = parse_data(buff, offset)
 
     try:

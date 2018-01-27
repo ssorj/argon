@@ -21,29 +21,17 @@ import sys as _sys
 
 _micropython = _sys.implementation.name == "micropython"
 
-try:
-    from collections import namedtuple as _namedtuple
-except ImportError:
-    from ucollections import namedtuple as _namedtuple
-
-try:
+if _micropython:
     import urandom as _random
-except ImportError:
-    import random as _random
-
-try:
     import uselect as _select
-except ImportError:
-    import select as _select
-
-try:
+    import usocket as _socket
     import ustruct as _struct
-except ImportError:
-    import struct as _struct
-
-try:
     import utime as _time
-except ImportError:
+else:
+    import random as _random
+    import select as _select
+    import socket as _socket
+    import struct as _struct
     import time as _time
 
 class Buffer:
