@@ -99,25 +99,32 @@ def _main():
             parse_offset = _parse_frames(input_buff, parse_offset, read_offset)
             emit_offset = _emit_frames(output_buff, emit_offset, output_frames)
 
-            if flags & _select.POLLOUT:
+            if write_offset < emit_offset and flags & _select.POLLOUT:
                 write_offset = _write_socket(output_buff, write_offset, emit_offset, sock)
     finally:
         sock.close()
 
 def _read_socket(buff, offset, sock):
+    #print("_read_socket")
+
     start = offset
 
     buff.ensure(offset + 1024)
 
     if _micropython:
-        return offset + sock.readinto(buff[offset:], 1024)
+        offset = offset + sock.readinto(buff[offset:], 1024)
     else:
-        return offset + sock.recv_into(buff[offset:], 1024)
+        offset = offset + sock.recv_into(buff[offset:], 1024)
+
+    return offset
 
 def _write_socket(buff, write_offset, emit_offset, sock):
+    #print("_write_socket")
     return write_offset + sock.send(buff[write_offset:emit_offset])
 
 def _parse_frames(buff, offset, limit):
+    #print("_parse_frames")
+
     while offset < limit:
         start = offset
 
@@ -140,6 +147,8 @@ def _parse_frames(buff, offset, limit):
     return offset
 
 def _emit_frames(buff, offset, output_frames):
+    #print("_emit_frames")
+
     while len(output_frames) > 0:
         frame = output_frames.pop(0)
 

@@ -75,19 +75,17 @@ class Buffer:
         # XXX Hideous bad hack
 
         def pack(self, offset, size, format_string, *values):
-            from argon.data import UnsignedLong
-
             self.ensure(offset + size)
 
-            new_values = list()
+            from argon.data import UnsignedLong
 
-            for value in values:
+            values = list(values)
+
+            for i, value in enumerate(values):
                 if isinstance(value, UnsignedLong):
-                    new_values.append(int.from_bytes(value.to_bytes(8, "big"), "big"))
-                else:
-                    new_values.append(value)
+                    values[i] = int.from_bytes(value.to_bytes(8, "big"), "big")
 
-            _struct.pack_into(format_string, self.octets, offset, *new_values)
+            _struct.pack_into(format_string, self.octets, offset, *values)
 
             return offset + size
     else:
@@ -101,7 +99,7 @@ class Buffer:
     def unpack(self, offset, size, format_string):
         assert len(self) > offset + size
 
-        values = _struct.unpack_from(format_string, self.octets, offset)
+        values = _struct.unpack_from(format_string, self.view, offset)
 
         return (offset + size,) + values
 

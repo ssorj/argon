@@ -112,13 +112,12 @@ def parse_frame(buff, offset):
     return parse_frame_body(buff, offset, channel)
 
 def parse_frame_header(buff, offset):
-    print("parse_frame_header", _frame_hex(buff[offset:offset + 20]), "...")
-
+    #print("parse_frame_header", _frame_hex(buff[offset:offset + 20]), "...")
     offset, size, _, _, channel = buff.unpack(offset, 8, "!IBBH")
     return offset, size, channel
 
 def parse_frame_body(buff, offset, channel):
-    print("parse_frame_body", _data_hex(buff[offset:offset + 20]), "...")
+    #print("parse_frame_body", _data_hex(buff[offset:offset + 20]), "...")
 
     offset, values, descriptor = parse_data(buff, offset)
 
