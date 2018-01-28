@@ -402,9 +402,6 @@ class _CompoundType(_CollectionType):
         return offset, value
 
     def emit_value(self, buff, offset, value):
-        return self.emit_value_long(buff, offset, value)
-
-    def emit_value(self, buff, offset, value):
         offset, size_offset = buff.skip(offset, 1)
         offset, count_offset = buff.skip(offset, 1)
 
@@ -439,6 +436,19 @@ class _CompoundType(_CollectionType):
 class _ListType(_CompoundType):
     def __init__(self):
         super().__init__(list, 0xc0, 0xd0)
+
+    def emit_value(self, buff, offset, value):
+        if len(value) == 0: return offset, 0x45
+
+        return super().emit_value(buff, offset, value)
+
+    def parse_value(self, buff, offset, format_code):
+        if format_code == 0x45:
+            value = []
+        else:
+            offset, value = super().parse_value(buff, offset, format_code)
+
+        return offset, value
 
 class _MapType(_CompoundType):
     def __init__(self):
@@ -540,6 +550,7 @@ _data_types_by_format_code = {
     0x42: _boolean_type,
     0x43: _uint_type,
     0x44: _ulong_type,
+    0x45: _list_type,
     0x50: _ubyte_type,
     0x51: _byte_type,
     0x52: _uint_type,
