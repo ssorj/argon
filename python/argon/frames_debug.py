@@ -25,6 +25,10 @@ from argon.frames import _frame_hex
 _input_frames = [
     OpenFrame(0, ["test0"]),
     OpenFrame(1, ["test1", "example.org"]),
+    BeginFrame(0, [None, 0, 100, 100]),
+    AttachFrame(0),
+    DetachFrame(0),
+    EndFrame(0),
     CloseFrame(0),
 ]
 

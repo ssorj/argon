@@ -25,7 +25,7 @@ from argon.data import _data_hex
 class _Frame:
     __slots__ = "channel", "_values"
 
-    def __init__(self, channel, values):
+    def __init__(self, channel, values=None):
         self.channel = channel
         self._values = values
 
@@ -69,10 +69,9 @@ def _frame_property(index):
     return property(get, set_)
 
 class OpenFrame(_Frame):
+    __slots__ = ()
+    
     _performative_code = UnsignedLong(0 << 32 | 0x00000010)
-
-    def __init__(self, channel, values=None):
-        super().__init__(channel, values)
 
     container_id = _frame_property(0)
     hostname = _frame_property(1)
@@ -85,7 +84,72 @@ class OpenFrame(_Frame):
     desired_capabilities = _frame_property(8)
     properties = _frame_property(9)
 
+class BeginFrame(_Frame):
+    __slots__ = ()
+    
+    _performative_code = UnsignedLong(0 << 32 | 0x00000011)
+
+    remote_channel = _frame_property(0)
+    next_outgoing_id = _frame_property(1)
+    incoming_window = _frame_property(2)
+    outgoing_window = _frame_property(3)
+    handle_max = _frame_property(4)
+    offered_capabilities = _frame_property(5)
+    desired_capabilities = _frame_property(6)
+    properties = _frame_property(7)
+
+class AttachFrame(_Frame):
+    __slots__ = ()
+    
+    _performative_code = UnsignedLong(0 << 32 | 0x00000012)
+
+    name = _frame_property(0)
+    handle = _frame_property(1)
+    role = _frame_property(2)
+    snd_settle_mode = _frame_property(3)
+    rcv_settle_mode = _frame_property(4)
+    source = _frame_property(5)
+    target = _frame_property(6)
+    unsettled = _frame_property(7)
+    incoming_unsettled = _frame_property(8)
+    initial_delivery_count = _frame_property(9)
+    max_message_size = _frame_property(10)
+    offered_capabilities = _frame_property(11)
+    desired_capabilities = _frame_property(12)
+    properties = _frame_property(13)
+
+# FlowFields = _namedtuple("FlowFields",
+#                          ("next_incoming_id", "incoming_window", "next_outgoing_id",
+#                           "outgoing_window", "handle", "delivery_count", "link_credit",
+#                           "available", "drain", "echo", "properties"))
+
+# TransferFields = _namedtuple("TransferFields",
+#                              ("handle", "delivery_id", "delivery_tag", "message_format",
+#                               "settled", "more", "rcv_settle_mode", "state",
+#                               "resume", "aborted", "batchable"))
+
+# DispositionFields = _namedtuple("DispositionFields",
+#                                 ("role", "first", "last", "settled", "batchable"))
+
+class DetachFrame(_Frame):
+    __slots__ = ()
+    
+    _performative_code = UnsignedLong(0 << 32 | 0x00000016)
+
+    handle = _frame_property(0)
+    closed = _frame_property(1)
+    error = _frame_property(2)
+
+class EndFrame(_Frame):
+    __slots__ = ()
+    
+    _performative_code = UnsignedLong(0 << 32 | 0x00000017)
+
+    error = _frame_property(0)
+
 class CloseFrame(_Frame):
+    __slots__ = ()
+    
     _performative_code = UnsignedLong(0 << 32 | 0x00000018)
 
     def __init__(self, channel, values=None):
@@ -95,6 +159,10 @@ class CloseFrame(_Frame):
 
 _frame_classes_by_performative_code = {
     UnsignedLong(0 << 32 | 0x00000010): OpenFrame,
+    UnsignedLong(0 << 32 | 0x00000011): BeginFrame,
+    UnsignedLong(0 << 32 | 0x00000012): AttachFrame,
+    UnsignedLong(0 << 32 | 0x00000016): DetachFrame,
+    UnsignedLong(0 << 32 | 0x00000017): EndFrame,
     UnsignedLong(0 << 32 | 0x00000018): CloseFrame,
 }
 
@@ -132,31 +200,3 @@ def _frame_hex(octets):
     o = _hex(octets)
     args = o[0:8], o[8:12], o[12:16], o[16:18], o[18:22], o[22:24], o[24:],
     return "{} {} {} {} {} {} {}".format(*args)
-
-# BeginFields = _namedtuple("BeginFields",
-#                           ("remote_channel", "next_outgoing_id", "incoming_window",
-#                            "outgoing_window", "handle_max", "offered_capabilities",
-#                            "desired_capabilities", "properties"))
-
-# AttachFields = _namedtuple("AttachFields",
-#                            ("name", "handle", "role", "snd_settle_mode", "rcv_settle_mode",
-#                             "source", "target", "unsettled", "incomplete_unsettled",
-#                             "initial_delivery_count", "max_message_size",
-#                             "offered_capabilities", "desired_capabilities", "properties"))
-
-# FlowFields = _namedtuple("FlowFields",
-#                          ("next_incoming_id", "incoming_window", "next_outgoing_id",
-#                           "outgoing_window", "handle", "delivery_count", "link_credit",
-#                           "available", "drain", "echo", "properties"))
-
-# TransferFields = _namedtuple("TransferFields",
-#                              ("handle", "delivery_id", "delivery_tag", "message_format",
-#                               "settled", "more", "rcv_settle_mode", "state",
-#                               "resume", "aborted", "batchable"))
-
-# DispositionFields = _namedtuple("DispositionFields",
-#                                 ("role", "first", "last", "settled", "batchable"))
-
-# DetachFields = _namedtuple("DetachFields", ("handle", "closed", "error"))
-
-# EndFields = _namedtuple("EndFields", ("error",))
