@@ -39,29 +39,12 @@ class Buffer:
         self.octets = bytearray(256)
         self.view = memoryview(self.octets)
 
-    def ensure(self, size):
-        if len(self.octets) < size:
-            new_size = max(size, 2 * len(self.octets))
-
-            # XXX
-            if _micropython:
-                self.octets = self.octets + bytearray([0] * new_size)
-            else:
-                self.view.release()
-                self.octets.extend([0] * max(size, 2 * len(self.octets)))
-                self.view = memoryview(self.octets)
-
     def skip(self, offset, size):
         return offset + size, offset
 
-    if _micropython:
-        def read(self, offset, size):
-            end = offset + size
-            return end, self.octets[offset:end]
-    else:
-        def read(self, offset, size):
-            end = offset + size
-            return end, self.view[offset:end]
+    def read(self, offset, size):
+        end = offset + size
+        return end, self.view[offset:end]
 
     def write(self, offset, octets):
         end = offset + len(octets)
@@ -71,9 +54,24 @@ class Buffer:
 
         return end
 
+    def unpack(self, offset, size, format_string):
+        assert len(self) > offset + size
+
+        values = _struct.unpack_from(format_string, self.view, offset)
+
+        return (offset + size,) + values
+
+    def __getitem__(self, index):
+        return self.view[index]
+
+    def __setitem__(self, index, value):
+        self.view[index] = value
+
+    def __len__(self):
+        return len(self.octets)
+
     if _micropython:
         # XXX Hideous bad hack
-
         def pack(self, offset, size, format_string, *values):
             self.ensure(offset + size)
 
@@ -88,6 +86,13 @@ class Buffer:
             _struct.pack_into(format_string, self.octets, offset, *values)
 
             return offset + size
+
+        def ensure(self, size):
+            if len(self.octets) < size:
+                new_size = max(size, 2 * len(self.octets))
+
+                self.octets = self.octets + bytearray([0] * new_size)
+                self.view = memoryview(self.octets)
     else:
         def pack(self, offset, size, format_string, *values):
             self.ensure(offset + size)
@@ -96,25 +101,13 @@ class Buffer:
 
             return offset + size
 
-    def unpack(self, offset, size, format_string):
-        assert len(self) > offset + size
+        def ensure(self, size):
+            if len(self.octets) < size:
+                new_size = max(size, 2 * len(self.octets))
 
-        values = _struct.unpack_from(format_string, self.view, offset)
-
-        return (offset + size,) + values
-
-    def send(self, offset, size, sock):
-        offset, data = self.read(offset, size)
-        return offset
-
-    def __getitem__(self, index):
-        return self.view[index]
-
-    def __setitem__(self, index, value):
-        self.octets[index] = value # XXX view
-
-    def __len__(self):
-        return len(self.octets)
+                self.view.release()
+                self.octets.extend([0] * max(size, 2 * len(self.octets)))
+                self.view = memoryview(self.octets)
 
 def _hex(data):
     return "".join(["{:02x}".format(x) for x in data])

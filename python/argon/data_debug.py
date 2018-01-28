@@ -167,8 +167,9 @@ def _main():
             print("Parsed {}".format(_data_hex(buff[start:offset])))
 
         #print(111, repr(output_value), type(output_value), "==", repr(value), type(output_value))
-        
-        assert output_value == value, "Expected {} but got {}".format(value, output_value)
+
+        msg = "Expected {} {} but got {} {}".format(type(value), value, type(output_value), output_value)
+        assert output_value == value, msg
 
         output_values.append(output_value)
 

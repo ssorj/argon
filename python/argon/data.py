@@ -401,6 +401,24 @@ class _CompoundType(_CollectionType):
 
         return offset, value
 
+    def emit_value(self, buff, offset, value):
+        return self.emit_value_long(buff, offset, value)
+
+    def emit_value(self, buff, offset, value):
+        offset, size_offset = buff.skip(offset, 1)
+        offset, count_offset = buff.skip(offset, 1)
+
+        offset, count = self.encode_into(buff, offset, value)
+
+        size = offset - count_offset
+        buff.pack(size_offset, 2, "!BB", size, count)
+
+        if size >= 256 and count >= 256:
+            # Too big for short encoding, so redo with the large one
+            return self.emit_value_long(buff, size_offset, value)
+
+        return offset, self.short_format_code
+
     def emit_value_long(self, buff, offset, value):
         offset, size_offset = buff.skip(offset, 4)
         offset, count_offset = buff.skip(offset, 4)
