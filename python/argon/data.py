@@ -385,44 +385,36 @@ class _CompoundType(_CollectionType):
     def __init__(self, python_type, short_format_code, long_format_code):
         super().__init__(python_type, short_format_code, long_format_code)
 
-    def encode_into(self, buff, offset, value):
-        for item in value:
-            offset = emit_data(buff, offset, item)
-
-        return offset, len(value)
-
-    def decode_from(self, buff, offset, count):
-        # assert count < 1000, count # XXX This is incorrect, but it catches some codec bugs
-
-        value = [None] * count
-
-        for i in range(count):
-            offset, value[i], _ = parse_data(buff, offset)
-
-        return offset, value
-
     def emit_value(self, buff, offset, value):
         offset, size_offset = buff.skip(offset, 1)
         offset, count_offset = buff.skip(offset, 1)
 
-        offset, count = self.encode_into(buff, offset, value)
+        value_offset = offset
+        offset = self.encode_into(buff, offset, value)
 
         size = offset - count_offset
-        buff.pack(size_offset, 2, "!BB", size, count)
+        count = self.get_count(value)
 
         if size >= 256 and count >= 256:
-            # Too big for short encoding, so redo with the large one
-            return self.emit_value_long(buff, size_offset, value)
+            encoded_value = bytes(buff[value_offset:offset])
+            return self.emit_value_long(buff, size_offset, value, encoded_value)
+
+        buff.pack(size_offset, 2, "!BB", size, count)
 
         return offset, self.short_format_code
 
-    def emit_value_long(self, buff, offset, value):
+    def emit_value_long(self, buff, offset, value, encoded_value=None):
         offset, size_offset = buff.skip(offset, 4)
         offset, count_offset = buff.skip(offset, 4)
 
-        offset, count = self.encode_into(buff, offset, value)
+        if encoded_value is None:
+            offset = self.encode_into(buff, offset, value)
+        else:
+            offset = buff.write(offset, encoded_value)
 
         size = offset - count_offset
+        count = self.get_count(value)
+
         buff.pack(size_offset, 8, "!II", size, count)
 
         return offset, self.long_format_code
@@ -437,6 +429,25 @@ class _ListType(_CompoundType):
     def __init__(self):
         super().__init__(list, 0xc0, 0xd0)
 
+    def get_count(self, value):
+        return len(value)
+
+    def encode_into(self, buff, offset, value):
+        for item in value:
+            offset = emit_data(buff, offset, item)
+
+        return offset
+
+    def decode_from(self, buff, offset, count):
+        # assert count < 1000, count # XXX This is incorrect, but it catches some codec bugs
+
+        value = [None] * count
+
+        for i in range(count):
+            offset, value[i], _ = parse_data(buff, offset)
+
+        return offset, value
+
     def emit_value(self, buff, offset, value):
         if len(value) == 0: return offset, 0x45
 
@@ -444,7 +455,7 @@ class _ListType(_CompoundType):
 
     def parse_value(self, buff, offset, format_code):
         if format_code == 0x45:
-            value = []
+            value = list()
         else:
             offset, value = super().parse_value(buff, offset, format_code)
 
@@ -454,22 +465,26 @@ class _MapType(_CompoundType):
     def __init__(self):
         super().__init__(dict, 0xc1, 0xd1)
 
+    def get_count(self, value):
+        return len(value) * 2
+
     def encode_into(self, buff, offset, value):
-        elems = list()
+        for item_key, item_value in value.items():
+            offset = emit_data(buff, offset, item_key)
+            offset = emit_data(buff, offset, item_value)
 
-        for item in value.items():
-            elems.extend(item)
-
-        return super().encode_into(buff, offset, elems)
+        return offset
 
     def decode_from(self, buff, offset, count):
-        offset, elems = super().decode_from(buff, offset, count)
-        pairs = dict()
+        items = dict()
 
-        for i in range(0, len(elems), 2):
-            pairs[elems[i]] = elems[i + 1]
+        for i in range(0, count, 2):
+            offset, item_key, _ = parse_data(buff, offset)
+            offset, item_value, _ = parse_data(buff, offset)
 
-        return offset, pairs
+            items[item_key] = item_value
+
+        return offset, items
 
 class _ArrayType(_CollectionType):
     def __init__(self):
