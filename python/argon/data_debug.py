@@ -68,6 +68,7 @@ if not _micropython:
         Float(-1.0),
 
         Char("a"),
+        Timestamp(round(_time.time(), 3)),
 
         Symbol("hello"),
         Symbol("x" * 256),
@@ -95,7 +96,6 @@ _input_values += [
     "Hello, \U0001F34B!",
     "\U0001F34B" * 256,
 
-    Timestamp(round(_time.time(), 3)),
     Uuid(_uuid_bytes()),
 
     [None, 0, 1, "abc"],
@@ -111,7 +111,7 @@ _input_values += [
     Array(int, [0, 1, 2]),
     Array(float, [0.0, 1.5, 3.0]),
     Array(Uuid, [_uuid_bytes(), _uuid_bytes(), _uuid_bytes()]),
-    
+
     Array(list, [[0, 1, "abc"], [0, 1, "abc"], [0, 1, "abc"]]),
     Array(dict, [{"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}, {"a": 0, "b": 1, "c": 2}]),
     Array(Array, [Array(bool, [True, False]), Array(bool, [True, False])]),
@@ -193,7 +193,7 @@ def _main():
             type(output_value).__name__,
             octets,
         )
-        
+
         print(row.format(*args))
 
 if __name__ == "__main__":

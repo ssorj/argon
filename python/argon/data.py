@@ -18,7 +18,7 @@
 #
 
 from argon.common import *
-from argon.common import _hex, _micropython, _struct
+from argon.common import _hex, _struct
 
 class UnsignedByte(int): pass
 class UnsignedShort(int): pass

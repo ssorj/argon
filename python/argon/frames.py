@@ -70,7 +70,7 @@ def _frame_property(index):
 
 class OpenFrame(_Frame):
     __slots__ = ()
-    
+
     _performative_code = UnsignedLong(0 << 32 | 0x00000010)
 
     container_id = _frame_property(0)
@@ -86,7 +86,7 @@ class OpenFrame(_Frame):
 
 class BeginFrame(_Frame):
     __slots__ = ()
-    
+
     _performative_code = UnsignedLong(0 << 32 | 0x00000011)
 
     remote_channel = _frame_property(0)
@@ -100,7 +100,7 @@ class BeginFrame(_Frame):
 
 class AttachFrame(_Frame):
     __slots__ = ()
-    
+
     _performative_code = UnsignedLong(0 << 32 | 0x00000012)
 
     name = _frame_property(0)
@@ -118,22 +118,54 @@ class AttachFrame(_Frame):
     desired_capabilities = _frame_property(12)
     properties = _frame_property(13)
 
-# FlowFields = _namedtuple("FlowFields",
-#                          ("next_incoming_id", "incoming_window", "next_outgoing_id",
-#                           "outgoing_window", "handle", "delivery_count", "link_credit",
-#                           "available", "drain", "echo", "properties"))
+class FlowFrame(_Frame):
+    __slots__ = ()
 
-# TransferFields = _namedtuple("TransferFields",
-#                              ("handle", "delivery_id", "delivery_tag", "message_format",
-#                               "settled", "more", "rcv_settle_mode", "state",
-#                               "resume", "aborted", "batchable"))
+    _performative_code = UnsignedLong(0 << 32 | 0x00000013)
 
-# DispositionFields = _namedtuple("DispositionFields",
-#                                 ("role", "first", "last", "settled", "batchable"))
+    next_incomping_id = _frame_property(0)
+    incoming_window = _frame_property(1)
+    next_outgoing_id = _frame_property(2)
+    outgoing_window = _frame_property(3)
+    handle = _frame_property(4)
+    delivery_count = _frame_property(5)
+    link_credit = _frame_property(6)
+    available = _frame_property(7)
+    drain = _frame_property(8)
+    echo = _frame_property(9)
+    properties = _frame_property(10)
+
+class TransferFrame(_Frame):
+    __slots__ = ()
+
+    _performative_code = UnsignedLong(0 << 32 | 0x00000014)
+
+    handle = _frame_property(0)
+    delivery_id = _frame_property(1)
+    delivery_tag = _frame_property(2)
+    message_format = _frame_property(3)
+    settled = _frame_property(4)
+    more = _frame_property(5)
+    rcv_settle_mode = _frame_property(6)
+    state = _frame_property(7)
+    resume = _frame_property(8)
+    aborted = _frame_property(9)
+    batchable = _frame_property(10)
+
+class DispositionFrame(_Frame):
+    __slots__ = ()
+
+    _performative_code = UnsignedLong(0 << 32 | 0x00000015)
+
+    role = _frame_property(0)
+    first = _frame_property(1)
+    last = _frame_property(2)
+    settled = _frame_property(3)
+    batchable = _frame_property(4)
 
 class DetachFrame(_Frame):
     __slots__ = ()
-    
+
     _performative_code = UnsignedLong(0 << 32 | 0x00000016)
 
     handle = _frame_property(0)
@@ -142,14 +174,14 @@ class DetachFrame(_Frame):
 
 class EndFrame(_Frame):
     __slots__ = ()
-    
+
     _performative_code = UnsignedLong(0 << 32 | 0x00000017)
 
     error = _frame_property(0)
 
 class CloseFrame(_Frame):
     __slots__ = ()
-    
+
     _performative_code = UnsignedLong(0 << 32 | 0x00000018)
 
     def __init__(self, channel, values=None):
@@ -161,6 +193,9 @@ _frame_classes_by_performative_code = {
     UnsignedLong(0 << 32 | 0x00000010): OpenFrame,
     UnsignedLong(0 << 32 | 0x00000011): BeginFrame,
     UnsignedLong(0 << 32 | 0x00000012): AttachFrame,
+    UnsignedLong(0 << 32 | 0x00000013): FlowFrame,
+    UnsignedLong(0 << 32 | 0x00000014): TransferFrame,
+    UnsignedLong(0 << 32 | 0x00000015): DispositionFrame,
     UnsignedLong(0 << 32 | 0x00000016): DetachFrame,
     UnsignedLong(0 << 32 | 0x00000017): EndFrame,
     UnsignedLong(0 << 32 | 0x00000018): CloseFrame,
