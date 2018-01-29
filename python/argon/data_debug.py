@@ -108,6 +108,7 @@ _input_values += [
     {"a": 0, "b": [0, 1, {"a": 0, "b": 1}]},
 
     Array(type(None), [None, None, None]),
+    Array(type(None), [None] * 256),
     Array(UnsignedByte, [0, 1, 2]),
     Array(int, [0, 1, 2]),
     Array(float, [0.0, 1.5, 3.0]),

@@ -395,7 +395,7 @@ class _CompoundType(_CollectionType):
         size = offset - count_offset
         count = self.get_count(value)
 
-        if size >= 256 and count >= 256:
+        if size >= 256 or count >= 256:
             encoded_value = bytes(buff[value_offset:offset])
             return self.emit_value_long(buff, size_offset, value, encoded_value)
 
@@ -506,29 +506,45 @@ class _ArrayType(_CollectionType):
 
         return offset, Array(elem_type, elems)
 
-    def xxx_emit_value(self, buff, offset, value):
-        offset, size_offset = buff.skip(offset, 1)
-        offset, count_offset = buff.skip(offset, 1)
-
-        elem_type = _get_data_type_for_python_type(value._elem_type)
-        elem_descriptor = value._elem_descriptor
-
-        pass
-
-        value_offset = offset
-        offset = self.encode_into(buff, offset, value)
-
-    def emit_value_long(self, buff, offset, value):
-        offset, size_offset = buff.skip(offset, 4)
-        offset, count_offset = buff.skip(offset, 4)
-
+    def emit_elem_constructor(self, buff, offset, value):
         elem_type = _get_data_type_for_python_type(value._elem_type)
         elem_descriptor = value._elem_descriptor
 
         offset, elem_format_code_offset = elem_type.emit_constructor(buff, offset, elem_descriptor)
         buff.pack(elem_format_code_offset, 1, "!B", elem_type.format_code)
 
+        return offset
+
+    def emit_value(self, buff, offset, value):
+        offset, size_offset = buff.skip(offset, 1)
+        offset, count_offset = buff.skip(offset, 1)
+
+        offset = self.emit_elem_constructor(buff, offset, value)
+
+        value_offset = offset
         offset = self.encode_into(buff, offset, value)
+
+        size = offset - count_offset
+        count = len(value._elems)
+
+        if size >= 256 or count >= 256:
+            encoded_value = bytes(buff[value_offset:offset])
+            return self.emit_value_long(buff, size_offset, value, encoded_value)
+
+        buff.pack(size_offset, 2, "!BB", size, count)
+
+        return offset, self.short_format_code
+
+    def emit_value_long(self, buff, offset, value, encoded_value=None):
+        offset, size_offset = buff.skip(offset, 4)
+        offset, count_offset = buff.skip(offset, 4)
+
+        offset = self.emit_elem_constructor(buff, offset, value)
+
+        if encoded_value is None:
+            offset = self.encode_into(buff, offset, value)
+        else:
+            offset = buff.write(offset, encoded_value)
 
         size = offset - count_offset
         count = len(value._elems)
