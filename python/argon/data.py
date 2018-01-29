@@ -28,6 +28,9 @@ class Byte(int): pass
 class Short(int): pass
 class Int(int): pass
 class Float(float): pass
+class Decimal32(bytes): pass
+class Decimal64(bytes): pass
+class Decimal128(bytes): pass
 class Char(str): pass
 class Timestamp(float): pass
 class Uuid(bytes): pass
@@ -74,6 +77,7 @@ class _DataType:
             descriptor = value.descriptor
             value = value.value
 
+        print(111, value, self.python_type)
         assert isinstance(value, self.python_type)
 
         offset, format_code_offset = self.emit_constructor(buff, offset, descriptor)
@@ -263,6 +267,30 @@ class _FloatType(_FixedWidthType):
 class _DoubleType(_FixedWidthType):
     def __init__(self):
         super().__init__(float, 0x82, "!d")
+
+class _Decimal32Type(_FixedWidthType):
+    def __init__(self):
+        super().__init__(Decimal32, 0x74, "!4s")
+
+    def parse_value(self, buff, offset, format_code):
+        offset, value = super().parse_value(buff, offset, format_code)
+        return offset, Decimal32(value)
+
+class _Decimal64Type(_FixedWidthType):
+    def __init__(self):
+        super().__init__(Decimal64, 0x84, "!8s")
+
+    def parse_value(self, buff, offset, format_code):
+        offset, value = super().parse_value(buff, offset, format_code)
+        return offset, Decimal64(value)
+
+class _Decimal128Type(_FixedWidthType):
+    def __init__(self):
+        super().__init__(Decimal128, 0x94, "!16s")
+
+    def parse_value(self, buff, offset, format_code):
+        offset, value = super().parse_value(buff, offset, format_code)
+        return offset, Decimal128(value)
 
 class _CharType(_FixedWidthType):
     def __init__(self):
@@ -593,6 +621,9 @@ _int_type = Int._data_type = _IntType()
 _long_type = _LongType()
 _float_type = Float._data_type = _FloatType()
 _double_type = _DoubleType()
+_decimal32_type = Decimal32._data_type = _Decimal32Type()
+_decimal64_type = Decimal64._data_type = _Decimal64Type()
+_decimal128_type = Decimal128._data_type = _Decimal128Type()
 _char_type = Char._data_type = _CharType()
 _timestamp_type = Timestamp._data_type = _TimestampType()
 _uuid_type = Uuid._data_type = _UuidType()
@@ -623,10 +654,13 @@ _data_types_by_format_code = {
     0x71: _int_type,
     0x72: _float_type,
     0x73: _char_type,
+    0x74: _decimal32_type,
     0x80: _ulong_type,
     0x81: _long_type,
     0x82: _double_type,
     0x83: _timestamp_type,
+    0x84: _decimal64_type,
+    0x94: _decimal128_type,
     0x98: _uuid_type,
     0xa0: _binary_type,
     0xa1: _string_type,

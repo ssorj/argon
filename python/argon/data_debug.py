@@ -56,6 +56,10 @@ if not _micropython:
         Float(1.0),
         Float(-1.0),
 
+        Decimal32(b"1111"),
+        Decimal64(b"22222222"),
+        Decimal128(b"4444444444444444"),
+
         Char("a"),
         Timestamp(round(_time.time(), 3)),
 
