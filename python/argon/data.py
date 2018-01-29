@@ -34,16 +34,24 @@ class Uuid(bytes): pass
 class Symbol(str): pass
 
 class Array:
-    def __init__(self, elem_type, elems, elem_descriptor=None):
-        self._elem_type = elem_type
-        self._elem_descriptor = elem_descriptor
-        self._elems = elems
+    def __init__(self, element_type, elements, element_descriptor=None):
+        self.element_type = element_type
+        self.element_descriptor = element_descriptor
+        self.elements = elements
 
     def __eq__(self, other):
-        return self._elems == other._elems
+        return self.elements == other.elements
 
     def __repr__(self):
-        return "{}({}, {})".format(self.__class__.__name__, self._elem_type, self._elems)
+        return "{}({}, {})".format(self.__class__.__name__, self.element_type, self.elements)
+
+class DescribedValue:
+    def __init__(self, descriptor, value):
+        self.descriptor = descriptor
+        self.value = value
+
+    def __repr__(self):
+        return "{}:{}".format(self.descriptor, self.value)
 
 class _DataType:
     def __init__(self, python_type, format_code):
@@ -491,9 +499,9 @@ class _ArrayType(_CollectionType):
         super().__init__(Array, 0xf0, 0xe0)
 
     def encode_into(self, buff, offset, value):
-        elem_type = _get_data_type_for_python_type(value._elem_type)
+        elem_type = _get_data_type_for_python_type(value.element_type)
 
-        for elem in value._elems:
+        for elem in value.elements:
             offset, format_code = elem_type.emit_value_long(buff, offset, elem)
 
         return offset
@@ -507,8 +515,8 @@ class _ArrayType(_CollectionType):
         return offset, Array(elem_type, elems)
 
     def emit_elem_constructor(self, buff, offset, value):
-        elem_type = _get_data_type_for_python_type(value._elem_type)
-        elem_descriptor = value._elem_descriptor
+        elem_type = _get_data_type_for_python_type(value.element_type)
+        elem_descriptor = value.element_descriptor
 
         offset, elem_format_code_offset = elem_type.emit_constructor(buff, offset, elem_descriptor)
         buff.pack(elem_format_code_offset, 1, "!B", elem_type.format_code)
@@ -525,7 +533,7 @@ class _ArrayType(_CollectionType):
         offset = self.encode_into(buff, offset, value)
 
         size = offset - count_offset
-        count = len(value._elems)
+        count = len(value.elements)
 
         if size >= 256 or count >= 256:
             encoded_value = bytes(buff[value_offset:offset])
@@ -547,7 +555,7 @@ class _ArrayType(_CollectionType):
             offset = buff.write(offset, encoded_value)
 
         size = offset - count_offset
-        count = len(value._elems)
+        count = len(value.elements)
 
         buff.pack(size_offset, 8, "!II", size, count)
 
