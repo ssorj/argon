@@ -53,6 +53,9 @@ class DescribedValue:
     def __repr__(self):
         return "{}:{}".format(self.descriptor, self.value)
 
+    def __eq__(self, other):
+        return self.descriptor == other.descriptor and self.value == other.value
+
 class _DataType:
     def __init__(self, python_type, format_code):
         assert python_type is not None
@@ -64,7 +67,13 @@ class _DataType:
     def __repr__(self):
         return self.python_type.__name__
 
-    def emit(self, buff, offset, value, descriptor=None):
+    def emit(self, buff, offset, value):
+        descriptor = None
+
+        if isinstance(value, DescribedValue):
+            descriptor = value.descriptor
+            value = value.value
+
         assert isinstance(value, self.python_type)
 
         offset, format_code_offset = self.emit_constructor(buff, offset, descriptor)
@@ -452,7 +461,7 @@ class _ListType(_CompoundType):
         value = [None] * count
 
         for i in range(count):
-            offset, value[i], _ = parse_data(buff, offset)
+            offset, value[i] = parse_data(buff, offset)
 
         return offset, value
 
@@ -487,8 +496,8 @@ class _MapType(_CompoundType):
         items = dict()
 
         for i in range(0, count, 2):
-            offset, item_key, _ = parse_data(buff, offset)
-            offset, item_value, _ = parse_data(buff, offset)
+            offset, item_key = parse_data(buff, offset)
+            offset, item_value = parse_data(buff, offset)
 
             items[item_key] = item_value
 
@@ -506,13 +515,13 @@ class _ArrayType(_CollectionType):
 
         return offset
 
-    def decode_from(self, buff, offset, count, elem_type, elem_format_code):
+    def decode_from(self, buff, offset, count, elem_type, elem_format_code, elem_descriptor):
         elems = [None] * count
 
         for i in range(count):
             offset, elems[i] = elem_type.parse_value(buff, offset, elem_format_code)
 
-        return offset, Array(elem_type, elems)
+        return offset, Array(elem_type, elems, elem_descriptor)
 
     def emit_elem_constructor(self, buff, offset, value):
         elem_type = _get_data_type_for_python_type(value.element_type)
@@ -567,9 +576,8 @@ class _ArrayType(_CollectionType):
 
         elem_type = _get_data_type_for_format_code(elem_format_code)
 
-        offset, value = self.decode_from(buff, offset, count, elem_type, elem_format_code)
-
-        # XXX elem_descriptor
+        offset, value = self.decode_from \
+            (buff, offset, count, elem_type, elem_format_code, elem_descriptor)
 
         return offset, value
 
@@ -670,24 +678,34 @@ def _get_data_type_for_python_type(python_type):
 
     raise Exception("No data type for Python type {}".format(python_type))
 
-def emit_data(buff, offset, value, descriptor=None):
-    data_type = _get_data_type_for_python_type(type(value))
-    return data_type.emit(buff, offset, value, descriptor)
+def emit_data(buff, offset, value):
+    python_type = type(value)
+
+    if issubclass(python_type, DescribedValue):
+        python_type = type(value.value)
+
+    data_type = _get_data_type_for_python_type(python_type)
+
+    return data_type.emit(buff, offset, value)
 
 def parse_data(buff, offset):
     #print("parse_data", _data_hex(buff[offset:offset + 20]), "...")
+
     offset, format_code, descriptor = _parse_constructor(buff, offset)
     data_type = _get_data_type_for_format_code(format_code)
     offset, value = data_type.parse_value(buff, offset, format_code)
 
-    return offset, value, descriptor
+    if descriptor is not None:
+        value = DescribedValue(descriptor, value)
+
+    return offset, value
 
 def _parse_constructor(buff, offset):
     offset, format_code = buff.unpack(offset, 1, "!B")
     descriptor = None
 
     if format_code == 0x00:
-        offset, descriptor, _ = parse_data(buff, offset)
+        offset, descriptor = parse_data(buff, offset)
         offset, format_code = buff.unpack(offset, 1, "!B")
 
     return offset, format_code, descriptor

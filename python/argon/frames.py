@@ -46,7 +46,7 @@ class _Frame:
         offset, size_offset = buff.skip(offset, 4)
 
         offset = buff.pack(offset, 4, "!BBH", 2, 0, self.channel)
-        offset = emit_data(buff, offset, self._values, self._performative_code)
+        offset = emit_data(buff, offset, DescribedValue(self._performative_code, self._values))
 
         size = offset - size_offset
         buff.pack(size_offset, 4, "!I", size)
@@ -222,7 +222,12 @@ def parse_frame_header(buff, offset):
 def parse_frame_body(buff, offset, channel):
     #print("parse_frame_body", _data_hex(buff[offset:offset + 20]), "...")
 
-    offset, values, descriptor = parse_data(buff, offset)
+    offset, value = parse_data(buff, offset)
+
+    assert isinstance(value, DescribedValue)
+
+    descriptor = value.descriptor
+    values = value.value
 
     try:
         frame_class = _frame_classes_by_performative_code[descriptor]

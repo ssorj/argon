@@ -22,20 +22,9 @@ from argon.common import _hex, _micropython, _shorten, _time, _uuid_bytes
 from argon.data import *
 from argon.data import _data_hex
 
-class _DescribedValue:
-    def __init__(self, descriptor, value):
-        self.descriptor = descriptor
-        self.value = value
-
-    def __repr__(self):
-        return "{}:{}".format(self.descriptor, self.value)
-
-    def __eq__(self, other):
-        return self.descriptor == other.descriptor and self.value == other.value
-
 _input_values = [
     None,
-    _DescribedValue("a", None),
+    DescribedValue("a", None),
 
     True,
     False,
@@ -128,17 +117,11 @@ def _main():
     output_octets = list()
 
     for value in _input_values:
-        descriptor = None
-
-        if isinstance(value, _DescribedValue):
-            descriptor = value.descriptor
-            value = value.value
-
         if debug:
             print("Emitting data for {}".format(value))
 
         start = offset
-        offset = emit_data(buff, offset, value, descriptor)
+        offset = emit_data(buff, offset, value)
 
         octets = _data_hex(buff[start:offset])
 
@@ -152,18 +135,12 @@ def _main():
     output_values = list()
 
     for value in _input_values:
-        descriptor = None
-
-        if isinstance(value, _DescribedValue):
-            descriptor = value.descriptor
-            value = value.value
-
         if debug:
             lookahead = _hex(buff[offset:offset + 20])
             print("Parsing {}... for {}".format(lookahead, value))
 
         start = offset
-        offset, output_value, output_descriptor = parse_data(buff, offset)
+        offset, output_value = parse_data(buff, offset)
 
         if debug:
             print("Parsed {}".format(_data_hex(buff[start:offset])))
@@ -176,12 +153,6 @@ def _main():
     row = "{:4}  {:>24}  {:16}  {:>24}  {:16}  {}"
 
     for i, value in enumerate(_input_values):
-        descriptor = None
-
-        if isinstance(value, _DescribedValue):
-            descriptor = value.descriptor
-            value = value.value
-
         output_value = output_values[i]
         octets = output_octets[i]
 
