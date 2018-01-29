@@ -43,7 +43,7 @@ class Array:
         return self._elems == other._elems
 
     def __repr__(self):
-        return "{}({}, {})".format(self.__class__.__name__, self._elem_type.__name__, self._elems)
+        return "{}({}, {})".format(self.__class__.__name__, self._elem_type, self._elems)
 
 class _DataType:
     def __init__(self, python_type, format_code):
@@ -496,7 +496,7 @@ class _ArrayType(_CollectionType):
         for elem in value._elems:
             offset, format_code = elem_type.emit_value_long(buff, offset, elem)
 
-        return offset, len(value._elems)
+        return offset
 
     def decode_from(self, buff, offset, count, elem_type, elem_format_code):
         elems = [None] * count
@@ -504,11 +504,19 @@ class _ArrayType(_CollectionType):
         for i in range(count):
             offset, elems[i] = elem_type.parse_value(buff, offset, elem_format_code)
 
-        # XXX Need to recover descriptor
+        return offset, Array(elem_type, elems)
 
-        elem_python_type = int # XXX
+    def xxx_emit_value(self, buff, offset, value):
+        offset, size_offset = buff.skip(offset, 1)
+        offset, count_offset = buff.skip(offset, 1)
 
-        return offset, Array(elem_python_type, elems)
+        elem_type = _get_data_type_for_python_type(value._elem_type)
+        elem_descriptor = value._elem_descriptor
+
+        pass
+
+        value_offset = offset
+        offset = self.encode_into(buff, offset, value)
 
     def emit_value_long(self, buff, offset, value):
         offset, size_offset = buff.skip(offset, 4)
@@ -520,20 +528,24 @@ class _ArrayType(_CollectionType):
         offset, elem_format_code_offset = elem_type.emit_constructor(buff, offset, elem_descriptor)
         buff.pack(elem_format_code_offset, 1, "!B", elem_type.format_code)
 
-        offset, count = self.encode_into(buff, offset, value)
+        offset = self.encode_into(buff, offset, value)
 
         size = offset - count_offset
+        count = len(value._elems)
+
         buff.pack(size_offset, 8, "!II", size, count)
 
         return offset, self.long_format_code
 
     def parse_value(self, buff, offset, format_code):
         offset, size, count = self.parse_size_and_count(buff, offset, format_code)
-        offset, elem_format_code = buff.unpack(offset, 1, "!B")
+        offset, elem_format_code, elem_descriptor = _parse_constructor(buff, offset)
 
         elem_type = _get_data_type_for_format_code(elem_format_code)
 
         offset, value = self.decode_from(buff, offset, count, elem_type, elem_format_code)
+
+        # XXX elem_descriptor
 
         return offset, value
 
