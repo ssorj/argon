@@ -77,7 +77,6 @@ class _DataType:
             descriptor = value.descriptor
             value = value.value
 
-        print(111, value, self.python_type)
         assert isinstance(value, self.python_type)
 
         offset, format_code_offset = self.emit_constructor(buff, offset, descriptor)
@@ -151,23 +150,20 @@ class _FixedWidthType(_DataType):
     def parse_value(self, buff, offset, format_code):
         return buff.unpack(offset, self.format_size, self.format_string)
 
-class _UnsignedByteType(_FixedWidthType):
+class _WrappedFixedWidthType(_FixedWidthType):
+    def parse_value(self, buff, offset, format_code):
+        offset, value = super().parse_value(buff, offset, format_code)
+        return offset, self.python_type(value)
+
+class _UnsignedByteType(_WrappedFixedWidthType):
     def __init__(self):
         super().__init__(UnsignedByte, 0x50, "!B")
 
-    def parse_value(self, buff, offset, format_code):
-        offset, value = super().parse_value(buff, offset, format_code)
-        return offset, UnsignedByte(value)
-
-class _UnsignedShortType(_FixedWidthType):
+class _UnsignedShortType(_WrappedFixedWidthType):
     def __init__(self):
         super().__init__(UnsignedShort, 0x60, "!H")
 
-    def parse_value(self, buff, offset, format_code):
-        offset, value = super().parse_value(buff, offset, format_code)
-        return offset, UnsignedShort(value)
-
-class _UnsignedIntType(_FixedWidthType):
+class _UnsignedIntType(_WrappedFixedWidthType):
     def __init__(self):
         super().__init__(UnsignedInt, 0x70, "!I")
 
@@ -178,16 +174,12 @@ class _UnsignedIntType(_FixedWidthType):
         return self.emit_value_long(buff, offset, value)
 
     def parse_value(self, buff, offset, format_code):
-        if format_code == 0x43:
-            value = 0
-        elif format_code == 0x52:
-            offset, value = buff.unpack(offset, 1, "!B")
-        else:
-            offset, value = super().parse_value(buff, offset, format_code)
+        if format_code == 0x43: return offset, 0
+        if format_code == 0x52: return buff.unpack(offset, 1, "!B")
 
-        return offset, UnsignedInt(value)
+        return super().parse_value(buff, offset, format_code)
 
-class _UnsignedLongType(_FixedWidthType):
+class _UnsignedLongType(_WrappedFixedWidthType):
     def __init__(self):
         super().__init__(UnsignedLong, 0x80, "!Q")
 
@@ -198,48 +190,32 @@ class _UnsignedLongType(_FixedWidthType):
         return self.emit_value_long(buff, offset, value)
 
     def parse_value(self, buff, offset, format_code):
-        if format_code == 0x44:
-            value = 0
-        elif format_code == 0x53:
-            offset, value = buff.unpack(offset, 1, "!B")
-        else:
-            offset, value = super().parse_value(buff, offset, format_code)
+        if format_code == 0x44: return offset, 0
+        if format_code == 0x53: return buff.unpack(offset, 1, "!B")
 
-        return offset, UnsignedLong(value)
+        return super().parse_value(buff, offset, format_code)
 
-class _ByteType(_FixedWidthType):
+class _ByteType(_WrappedFixedWidthType):
     def __init__(self):
         super().__init__(Byte, 0x51, "!b")
 
-    def parse_value(self, buff, offset, format_code):
-        offset, value = super().parse_value(buff, offset, format_code)
-        return offset, Byte(value)
-
-class _ShortType(_FixedWidthType):
+class _ShortType(_WrappedFixedWidthType):
     def __init__(self):
         super().__init__(Short, 0x61, "!h")
 
-    def parse_value(self, buff, offset, format_code):
-        offset, value = super().parse_value(buff, offset, format_code)
-        return offset, Short(value)
-
-class _IntType(_FixedWidthType):
+class _IntType(_WrappedFixedWidthType):
     def __init__(self):
         super().__init__(Int, 0x71, "!i")
 
     def emit_value(self, buff, offset, value):
-        if value >= -128 and value <= 127:
-            return buff.pack(offset, 1, "!b", value), 0x54
+        if value >= -128 and value <= 127: return buff.pack(offset, 1, "!b", value), 0x54
 
         return self.emit_value_long(buff, offset, value)
 
     def parse_value(self, buff, offset, format_code):
-        if format_code == 0x54:
-            offset, value = buff.unpack(offset, 1, "!b")
-        else:
-            offset, value = super().parse_value(buff, offset, format_code)
+        if format_code == 0x54: return buff.unpack(offset, 1, "!b")
 
-        return offset, Int(value)
+        return super().parse_value(buff, offset, format_code)
 
 class _LongType(_FixedWidthType):
     def __init__(self):
@@ -256,41 +232,25 @@ class _LongType(_FixedWidthType):
 
         return super().parse_value(buff, offset, format_code)
 
-class _FloatType(_FixedWidthType):
+class _FloatType(_WrappedFixedWidthType):
     def __init__(self):
         super().__init__(Float, 0x72, "!f")
-
-    def parse_value(self, buff, offset, format_code):
-        offset, value = super().parse_value(buff, offset, format_code)
-        return offset, Float(value)
 
 class _DoubleType(_FixedWidthType):
     def __init__(self):
         super().__init__(float, 0x82, "!d")
 
-class _Decimal32Type(_FixedWidthType):
+class _Decimal32Type(_WrappedFixedWidthType):
     def __init__(self):
         super().__init__(Decimal32, 0x74, "!4s")
 
-    def parse_value(self, buff, offset, format_code):
-        offset, value = super().parse_value(buff, offset, format_code)
-        return offset, Decimal32(value)
-
-class _Decimal64Type(_FixedWidthType):
+class _Decimal64Type(_WrappedFixedWidthType):
     def __init__(self):
         super().__init__(Decimal64, 0x84, "!8s")
 
-    def parse_value(self, buff, offset, format_code):
-        offset, value = super().parse_value(buff, offset, format_code)
-        return offset, Decimal64(value)
-
-class _Decimal128Type(_FixedWidthType):
+class _Decimal128Type(_WrappedFixedWidthType):
     def __init__(self):
         super().__init__(Decimal128, 0x94, "!16s")
-
-    def parse_value(self, buff, offset, format_code):
-        offset, value = super().parse_value(buff, offset, format_code)
-        return offset, Decimal128(value)
 
 class _CharType(_FixedWidthType):
     def __init__(self):
@@ -302,15 +262,11 @@ class _CharType(_FixedWidthType):
 
     def parse_value(self, buff, offset, format_code):
         offset, value = super().parse_value(buff, offset, format_code)
-        return offset, Char(value.decode("utf-32-be"))
+        return offset, self.python_type(value.decode("utf-32-be"))
 
-class _UuidType(_FixedWidthType):
+class _UuidType(_WrappedFixedWidthType):
     def __init__(self):
         super().__init__(Uuid, 0x98, "!16s")
-
-    def parse_value(self, buff, offset, format_code):
-        offset, value = super().parse_value(buff, offset, format_code)
-        return offset, Uuid(value)
 
 class _TimestampType(_FixedWidthType):
     def __init__(self):
@@ -322,7 +278,7 @@ class _TimestampType(_FixedWidthType):
 
     def parse_value(self, buff, offset, format_code):
         offset, value = super().parse_value(buff, offset, format_code)
-        return offset, Timestamp(round(value / 1000, 3))
+        return offset, self.python_type(round(value / 1000, 3))
 
 class _VariableWidthType(_DataType):
     def __init__(self, python_type, short_format_code, long_format_code):
@@ -484,7 +440,7 @@ class _ListType(_CompoundType):
         return offset
 
     def decode_from(self, buff, offset, count):
-        # assert count < 1000, count # XXX This is incorrect, but it catches some codec bugs
+        # assert count < 1000, count # This is incorrect, but it catches some codec bugs
 
         value = [None] * count
 
