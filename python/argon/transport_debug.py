@@ -30,22 +30,22 @@ def _log_receive(octets, obj):
     print("R", octets)
     print(" ", obj)
 
+class _DebugConnection(TcpConnection):
+    def on_start(self):
+        frame = OpenFrame(0)
+        frame.container_id = "abc123"
+        self.send_frame(frame)
+
+        frame = CloseFrame(0)
+        self.send_frame(frame)
+
+    def on_frame(self, frame):
+        print(111, frame)
+
 def _main():
-    input_frames = list()
-    output_frames = list()
+    conn = _DebugConnection("127.0.0.1", 5672)
+    conn.run()
 
-    frame = OpenFrame(0)
-    frame.container_id = "abc123"
-
-    output_frames.append(frame)
-
-    frame = CloseFrame(0)
-
-    output_frames.append(frame)
-
-    connect_and_run("127.0.0.1", 5672, input_frames, output_frames)
-
-    # Consider tick
 if __name__ == "__main__":
     try:
         _main()
