@@ -148,11 +148,12 @@ class TcpConnection:
                 return start
 
             offset, size, channel = parse_frame_header(buff, offset)
+            end = start + size
 
-            if start + size > limit:
+            if end > limit:
                 return start
 
-            offset, frame = parse_frame_body(buff, offset, channel)
+            offset, frame = parse_frame_body(buff, offset, end, channel)
 
             self._log_receive(_frame_hex(buff[start:offset]), frame)
 

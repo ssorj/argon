@@ -55,6 +55,10 @@ class _DebugSession(Session):
 class _DebugLink(Link):
     def on_open(self):
         print("LINK OPENED")
+
+    def on_flow(self):
+        print("LINK FLOW")
+        self.send_transfer()
         self.send_close()
 
     def on_close(self):

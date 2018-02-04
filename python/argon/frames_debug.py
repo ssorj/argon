@@ -28,7 +28,7 @@ _input_frames = [
     BeginFrame(0, [None, 0, 100, 100]),
     AttachFrame(0),
     FlowFrame(0),
-    TransferFrame(0),
+    TransferFrame(0, [], b"x" * 32),
     DispositionFrame(0),
     DetachFrame(0),
     EndFrame(0),

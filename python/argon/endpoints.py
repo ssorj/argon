@@ -45,23 +45,32 @@ class Connection(TcpConnection):
 
             return
 
+        if isinstance(frame, CloseFrame):
+            assert self._opened is True and self._closed is False
+
+            self._closed = True
+            self.on_close()
+
+            return
+
+        session = self.sessions_by_channel[frame.channel]
+        
         if isinstance(frame, BeginFrame):
-            session = self.sessions_by_channel[frame.channel]
-
             session._receive_open(frame)
-
             return
 
         if isinstance(frame, AttachFrame):
-            session = self.sessions_by_channel[frame.channel]
             link = session.links_by_name[frame.name]
-
             link._receive_open(frame)
-
             return
 
         if isinstance(frame, FlowFrame):
-            return # XXX
+            if frame.handle is None:
+                return # XXX Handle flow for sessions
+
+            link = session.links_by_handle[frame.handle]
+            link._receive_flow(frame)
+            return
 
         if isinstance(frame, DetachFrame):
             session = self.sessions_by_channel[frame.channel]
@@ -75,14 +84,6 @@ class Connection(TcpConnection):
             session = self.sessions_by_channel[frame.channel]
 
             session._receive_close(frame)
-
-            return
-
-        if isinstance(frame, CloseFrame):
-            assert self._opened is True and self._closed is False
-
-            self._closed = True
-            self.on_close()
 
             return
 
@@ -136,8 +137,11 @@ class Session(_Endpoint):
         self._incoming_window = 0xffff
         self._outgoing_window = 0xffff
 
+        self._link_handles = _Sequence()
+        
         self.links = list()
         self.links_by_name = dict()
+        self.links_by_handle = dict()
 
         self.connection.sessions.append(self)
         self.connection.sessions_by_channel[self.channel] = self
@@ -159,17 +163,23 @@ class Session(_Endpoint):
         self.connection.send_frame(frame)
 
 class Link(_Endpoint):
-    def __init__(self, session):
+    def __init__(self, session, name=None):
         super().__init__(session.connection, session.channel)
 
         self.session = session
 
-        self._name = "hello"
-        self._handle = 0
+        self._name = name
+        self._handle = self.session._link_handles.next()
         self._role = False # Sender
 
+        if self._name is None:
+            self._name = "{}-{}".format(self.connection.container_id, self._handle)
+        
+        self._delivery_tags = _Sequence()
+        
         self.session.links.append(self)
         self.session.links_by_name[self._name] = self
+        self.session.links_by_handle[self._handle] = self
 
     def send_open(self):
         frame = AttachFrame(self.channel)
@@ -182,6 +192,33 @@ class Link(_Endpoint):
     def _receive_open(self, frame):
         self.on_open()
 
+    def _receive_flow(self, frame):
+        self.credit = frame.link_credit
+        self.on_flow()
+
+    def on_flow(self):
+        pass
+
+    def send_transfer(self):
+        frame = TransferFrame(self.channel)
+        frame.handle = self._handle
+        frame.delivery_tag = UnsignedInt(self._delivery_tags.next())
+        frame.delivery_id = frame.delivery_tag
+        frame.message_format = UnsignedInt(0)
+        frame.settled = True
+
+        self.connection.send_frame(frame)
+    
     def send_close(self, error=None):
         frame = DetachFrame(self.channel)
         self.connection.send_frame(frame)
+
+class _Sequence:
+    __slots__ = ("value",)
+    
+    def __init__(self):
+        self.value = -1 # XXX Things break when this is 0
+
+    def next(self):
+        self.value += 1
+        return self.value
