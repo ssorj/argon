@@ -38,6 +38,9 @@ io-debug: io-debug-cpython io-debug-micropython
 .PHONY: endpoints-debug
 endpoints-debug: endpoints-debug-cpython endpoints-debug-micropython
 
+.PHONY: message-debug
+message-debug: message-debug-cpython message-debug-micropython
+
 .PHONY: %-debug-cpython
 %-debug-cpython:
 	python3 -m argon.$*_debug

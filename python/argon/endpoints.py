@@ -219,6 +219,9 @@ class Link(_Endpoint):
 
         self.connection.send_frame(frame)
 
+class _Terminus:
+    pass
+
 class _Sequence:
     __slots__ = ("value",)
 
