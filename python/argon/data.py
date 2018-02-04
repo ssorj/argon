@@ -50,14 +50,14 @@ class Array:
 
 class DescribedValue:
     def __init__(self, descriptor, value):
-        self.descriptor = descriptor
-        self.value = value
+        self._descriptor = descriptor
+        self._value = value
 
     def __repr__(self):
-        return "{}:{}".format(self.descriptor, self.value)
+        return "{}:{}".format(self._descriptor, self._value)
 
     def __eq__(self, other):
-        return self.descriptor == other.descriptor and self.value == other.value
+        return self._descriptor == other._descriptor and self._value == other._value
 
 class _DataType:
     def __init__(self, python_type, format_code):
@@ -74,8 +74,8 @@ class _DataType:
         descriptor = None
 
         if isinstance(value, DescribedValue):
-            descriptor = value.descriptor
-            value = value.value
+            descriptor = value._descriptor
+            value = value._value
 
         assert isinstance(value, self.python_type)
 
@@ -672,7 +672,7 @@ def emit_data(buff, offset, value):
     python_type = type(value)
 
     if issubclass(python_type, DescribedValue):
-        python_type = type(value.value)
+        python_type = type(value._value)
 
     data_type = _get_data_type_for_python_type(python_type)
 

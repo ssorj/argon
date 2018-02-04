@@ -200,8 +200,8 @@ def parse_frame_body(buff, offset, end, channel):
 
     assert isinstance(performative, DescribedValue)
 
-    descriptor = performative.descriptor
-    values = performative.value
+    descriptor = performative._descriptor
+    values = performative._value
 
     try:
         frame_class = _frame_classes_by_descriptor[descriptor]
