@@ -32,7 +32,7 @@ class TcpConnection:
         self.debug = True
 
         self._output_frames = list()
-        
+
     def _log_send(self, octets, obj):
         if self.debug:
             print("S", octets)
@@ -68,6 +68,8 @@ class TcpConnection:
             poller.register(sock)
 
             while True:
+                _time.sleep(0.2)
+
                 events = poller.poll(1000)
                 flags = events[0][1]
 
@@ -92,7 +94,7 @@ class TcpConnection:
 
     def on_start(self):
         pass
-            
+
     def on_frame(self, frame):
         pass
 
@@ -101,7 +103,7 @@ class TcpConnection:
 
     def send_frame(self, frame):
         self._output_frames.append(frame)
-            
+
     def _shake_hands(self, sock):
         protocol_header = _struct.pack("!4sBBBB", b"AMQP", 0, 1, 0, 0)
 

@@ -47,12 +47,33 @@ class Connection(TcpConnection):
 
         if isinstance(frame, BeginFrame):
             session = self.sessions_by_channel[frame.channel]
+
             session._receive_open(frame)
+
+            return
+
+        if isinstance(frame, AttachFrame):
+            session = self.sessions_by_channel[frame.channel]
+            link = session.links_by_name[frame.name]
+
+            link._receive_open(frame)
+
+            return
+
+        if isinstance(frame, FlowFrame):
+            return # XXX
+
+        if isinstance(frame, DetachFrame):
+            session = self.sessions_by_channel[frame.channel]
+            link = session.links_by_name[frame.name]
+
+            link._receive_close(frame)
 
             return
 
         if isinstance(frame, EndFrame):
             session = self.sessions_by_channel[frame.channel]
+
             session._receive_close(frame)
 
             return
@@ -64,6 +85,8 @@ class Connection(TcpConnection):
             self.on_close()
 
             return
+
+        raise Exception()
 
     def send_open(self):
         frame = OpenFrame(0)
@@ -113,6 +136,9 @@ class Session(_Endpoint):
         self._incoming_window = 0xffff
         self._outgoing_window = 0xffff
 
+        self.links = list()
+        self.links_by_name = dict()
+
         self.connection.sessions.append(self)
         self.connection.sessions_by_channel[self.channel] = self
 
@@ -130,4 +156,32 @@ class Session(_Endpoint):
 
     def send_close(self, error=None):
         frame = EndFrame(self.channel)
+        self.connection.send_frame(frame)
+
+class Link(_Endpoint):
+    def __init__(self, session):
+        super().__init__(session.connection, session.channel)
+
+        self.session = session
+
+        self._name = "hello"
+        self._handle = 0
+        self._role = False # Sender
+
+        self.session.links.append(self)
+        self.session.links_by_name[self._name] = self
+
+    def send_open(self):
+        frame = AttachFrame(self.channel)
+        frame.name = self._name
+        frame.handle = UnsignedInt(self._handle)
+        frame.role = False
+
+        self.connection.send_frame(frame)
+
+    def _receive_open(self, frame):
+        self.on_open()
+
+    def send_close(self, error=None):
+        frame = DetachFrame(self.channel)
         self.connection.send_frame(frame)

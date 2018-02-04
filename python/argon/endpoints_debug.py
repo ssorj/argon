@@ -37,18 +37,33 @@ class _DebugConnection(Connection):
         raise KeyboardInterrupt() # XXX
 
 class _DebugSession(Session):
+    def __init__(self, connection, channel):
+        super().__init__(connection, channel)
+
+        self.link = _DebugLink(self)
+
     def on_open(self):
-        print("SESSION  OPENED")
-        self.send_close()
+        print("SESSION OPENED")
+
+        self.link.send_open()
 
     def on_close(self):
         print("SESSION CLOSED")
+
         self.connection.send_close()
+
+class _DebugLink(Link):
+    def on_open(self):
+        print("LINK OPENED")
+        self.send_close()
+
+    def on_close(self):
+        print("LINK CLOSED")
+
+        self.session.send_close()
 
 def _main():
     conn = _DebugConnection("127.0.0.1", 5672, "abc")
-    sess = _DebugSession(conn, 0)
-
     conn.run()
 
 if __name__ == "__main__":
