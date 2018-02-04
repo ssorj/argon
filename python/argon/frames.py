@@ -17,7 +17,7 @@
 # under the License.
 #
 
-from argon.common import _hex
+from argon.common import _field_property, _hex
 from argon.data import *
 from argon.data import _data_hex
 
@@ -58,21 +58,6 @@ class _Frame:
         buff.pack(size_offset, 4, "!I", size)
 
         return offset
-
-def _field_property(index):
-    def get(obj):
-        try:
-            return obj._field_values[index]
-        except IndexError:
-            return None
-
-    def set_(obj, value):
-        try:
-            obj._field_values[index] = value
-        except IndexError:
-            obj._field_values += ([None] * (index - len(obj._field_values))) + [value]
-
-    return property(get, set_)
 
 class OpenFrame(_Frame):
     __slots__ = ()
@@ -206,13 +191,10 @@ def parse_frame(buff, offset):
     return parse_frame_body(buff, offset, end, channel)
 
 def parse_frame_header(buff, offset):
-    #print("parse_frame_header", _frame_hex(buff[offset:offset + 20]), "...")
     offset, size, _, _, channel = buff.unpack(offset, 8, "!IBBH")
     return offset, size, channel
 
 def parse_frame_body(buff, offset, end, channel):
-    #print("parse_frame_body", _data_hex(buff[offset:offset + 20]), "...")
-
     offset, performative = parse_data(buff, offset)
     offset, payload = buff.read(offset, end - offset)
 

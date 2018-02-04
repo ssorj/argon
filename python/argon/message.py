@@ -17,7 +17,7 @@
 # under the License.
 #
 
-from argon.frames import _field_property # XXX Move to common
+from argon.common import _field_property
 
 class _Section:
     __slots__ = ("_field_values",)
