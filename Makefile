@@ -21,7 +21,7 @@ export PYTHONPATH := python
 export MICROPYPATH := python
 
 .PHONY: default
-default: frames-debug
+default: endpoints-debug
 
 .PHONY: data-debug
 data-debug: data-debug-cpython data-debug-micropython
@@ -34,6 +34,9 @@ frames-debug: frames-debug-cpython frames-debug-micropython
 
 .PHONY: transport-debug
 transport-debug: transport-debug-cpython transport-debug-micropython
+
+.PHONY: endpoints-debug
+endpoints-debug: endpoints-debug-cpython endpoints-debug-micropython
 
 .PHONY: %-debug-cpython
 %-debug-cpython:

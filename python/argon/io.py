@@ -155,10 +155,6 @@ class TcpConnection:
             self._log_receive(_frame_hex(buff[start:offset]), frame)
 
             self.on_frame(frame)
-            
-            if isinstance(frame, CloseFrame):
-                print("SUCCESS")
-                raise KeyboardInterrupt()
 
         return offset
 

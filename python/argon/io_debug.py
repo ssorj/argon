@@ -19,16 +19,7 @@
 
 import sys as _sys
 
-from argon.common import *
-from argon.transport import *
-
-def _log_send(octets, obj):
-    print("S", octets)
-    print(" ", obj)
-
-def _log_receive(octets, obj):
-    print("R", octets)
-    print(" ", obj)
+from argon.io import *
 
 class _DebugConnection(TcpConnection):
     def on_start(self):
@@ -36,11 +27,26 @@ class _DebugConnection(TcpConnection):
         frame.container_id = "abc123"
         self.send_frame(frame)
 
+        frame = BeginFrame(0)
+        frame.next_outgoing_id = UnsignedInt(0)
+        frame.incoming_window = UnsignedInt(0xffff)
+        frame.outgoing_window = UnsignedInt(0xffff)
+        self.send_frame(frame)
+
+        frame = EndFrame(0)
+        self.send_frame(frame)
+
+        frame = AttachFrame(0)
+        frame.name = "abc"
+        frame.handle = UnsignedInt(0)
+        frame.role = False # sender
+        self.send_frame(frame)
+        
         frame = CloseFrame(0)
         self.send_frame(frame)
 
     def on_frame(self, frame):
-        print(111, frame)
+        pass
 
 def _main():
     conn = _DebugConnection("127.0.0.1", 5672)

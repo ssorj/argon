@@ -17,7 +17,6 @@
 # under the License.
 #
 
-from argon.common import *
 from argon.common import _hex
 from argon.data import *
 from argon.data import _data_hex

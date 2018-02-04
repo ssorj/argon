@@ -75,12 +75,12 @@ class Buffer:
         def pack(self, offset, size, format_string, *values):
             self.ensure(offset + size)
 
-            from argon.data import UnsignedLong
+            from argon.data import UnsignedInt, UnsignedLong
 
             values = list(values)
 
             for i, value in enumerate(values):
-                if isinstance(value, UnsignedLong):
+                if isinstance(value, (UnsignedInt, UnsignedLong)):
                     values[i] = int.from_bytes(value.to_bytes(8, "big"), "big")
 
             _struct.pack_into(format_string, self.octets, offset, *values)
