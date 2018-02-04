@@ -24,10 +24,16 @@ from argon.data import _data_hex
 class _Frame:
     __slots__ = "channel", "_field_values", "payload"
 
-    def __init__(self, channel, field_values=[], payload=b""):
+    def __init__(self, channel, field_values=None, payload=None):
         self.channel = channel
         self._field_values = field_values
         self.payload = payload
+
+        if self._field_values is None:
+            self._field_values = []
+
+        if self.payload is None:
+            self.payload = b""
 
     def __hash__(self):
         return hash(self._field_values)

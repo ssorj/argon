@@ -54,7 +54,7 @@ class Connection(TcpConnection):
             return
 
         session = self.sessions_by_channel[frame.channel]
-        
+
         if isinstance(frame, BeginFrame):
             session._receive_open(frame)
             return
@@ -73,18 +73,12 @@ class Connection(TcpConnection):
             return
 
         if isinstance(frame, DetachFrame):
-            session = self.sessions_by_channel[frame.channel]
-            link = session.links_by_name[frame.name]
-
+            link = session.links_by_handle[frame.handle]
             link._receive_close(frame)
-
             return
 
         if isinstance(frame, EndFrame):
-            session = self.sessions_by_channel[frame.channel]
-
             session._receive_close(frame)
-
             return
 
         raise Exception()
@@ -138,7 +132,7 @@ class Session(_Endpoint):
         self._outgoing_window = 0xffff
 
         self._link_handles = _Sequence()
-        
+
         self.links = list()
         self.links_by_name = dict()
         self.links_by_handle = dict()
@@ -174,9 +168,9 @@ class Link(_Endpoint):
 
         if self._name is None:
             self._name = "{}-{}".format(self.connection.container_id, self._handle)
-        
-        self._delivery_tags = _Sequence()
-        
+
+        self._delivery_ids = _Sequence()
+
         self.session.links.append(self)
         self.session.links_by_name[self._name] = self
         self.session.links_by_handle[self._handle] = self
@@ -186,6 +180,7 @@ class Link(_Endpoint):
         frame.name = self._name
         frame.handle = UnsignedInt(self._handle)
         frame.role = False
+        frame.snd_settle_mode = UnsignedByte(1) # XXX Presettled
 
         self.connection.send_frame(frame)
 
@@ -199,23 +194,26 @@ class Link(_Endpoint):
     def on_flow(self):
         pass
 
-    def send_transfer(self):
-        frame = TransferFrame(self.channel)
+    def send_transfer(self, payload):
+        frame = TransferFrame(self.channel, payload=payload)
         frame.handle = self._handle
-        frame.delivery_tag = UnsignedInt(self._delivery_tags.next())
-        frame.delivery_id = frame.delivery_tag
+        frame.delivery_id = UnsignedInt(self._delivery_ids.next())
+        frame.delivery_tag = "delivery-{}".format(frame.delivery_id).encode("ascii") # XXX
         frame.message_format = UnsignedInt(0)
         frame.settled = True
 
         self.connection.send_frame(frame)
-    
+
     def send_close(self, error=None):
         frame = DetachFrame(self.channel)
+        frame.handle = self._handle
+        frame.closed = True
+
         self.connection.send_frame(frame)
 
 class _Sequence:
     __slots__ = ("value",)
-    
+
     def __init__(self):
         self.value = -1 # XXX Things break when this is 0
 

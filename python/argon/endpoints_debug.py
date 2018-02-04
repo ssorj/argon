@@ -58,7 +58,7 @@ class _DebugLink(Link):
 
     def on_flow(self):
         print("LINK FLOW")
-        self.send_transfer()
+        #self.send_transfer(b"x" * 32)
         self.send_close()
 
     def on_close(self):

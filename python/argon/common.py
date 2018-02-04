@@ -75,12 +75,18 @@ class Buffer:
         def pack(self, offset, size, format_string, *values):
             self.ensure(offset + size)
 
-            from argon.data import UnsignedInt, UnsignedLong
+            from argon.data import UnsignedByte, UnsignedShort, UnsignedInt, UnsignedLong
 
             values = list(values)
 
             for i, value in enumerate(values):
-                if isinstance(value, (UnsignedInt, UnsignedLong)):
+                if isinstance(value, UnsignedByte):
+                    values[i] = int.from_bytes(value.to_bytes(1, "big"), "big")
+                elif isinstance(value, UnsignedShort):
+                    values[i] = int.from_bytes(value.to_bytes(2, "big"), "big")
+                elif isinstance(value, UnsignedInt):
+                    values[i] = int.from_bytes(value.to_bytes(4, "big"), "big")
+                elif isinstance(value, UnsignedLong):
                     values[i] = int.from_bytes(value.to_bytes(8, "big"), "big")
 
             _struct.pack_into(format_string, self.octets, offset, *values)
