@@ -37,7 +37,9 @@ class Connection(TcpConnection):
         self.send_open()
 
     def on_frame(self, frame):
-        if isinstance(frame, OpenFrame):
+        frame_type = type(frame)
+
+        if frame_type is OpenFrame:
             assert self._opened is False and self._closed is False
 
             self._opened = True
@@ -45,7 +47,7 @@ class Connection(TcpConnection):
 
             return
 
-        if isinstance(frame, CloseFrame):
+        if frame_type is CloseFrame:
             assert self._opened is True and self._closed is False
 
             self._closed = True
@@ -55,16 +57,16 @@ class Connection(TcpConnection):
 
         session = self.sessions_by_channel[frame.channel]
 
-        if isinstance(frame, BeginFrame):
+        if frame_type is BeginFrame:
             session._receive_open(frame)
             return
 
-        if isinstance(frame, AttachFrame):
+        if frame_type is AttachFrame:
             link = session.links_by_name[frame.name]
             link._receive_open(frame)
             return
 
-        if isinstance(frame, FlowFrame):
+        if frame_type is FlowFrame:
             if frame.handle is None:
                 return # XXX Handle flow for sessions
 
@@ -72,12 +74,18 @@ class Connection(TcpConnection):
             link._receive_flow(frame)
             return
 
-        if isinstance(frame, DetachFrame):
+        if frame_type is TransferFrame:
+            return # XXX Only sending for now
+
+        if frame_type is DispositionFrame:
+            return # XXX All presettled for now
+
+        if frame_type is DetachFrame:
             link = session.links_by_handle[frame.handle]
             link._receive_close(frame)
             return
 
-        if isinstance(frame, EndFrame):
+        if frame_type is EndFrame:
             session._receive_close(frame)
             return
 

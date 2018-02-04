@@ -48,7 +48,7 @@ class _Frame:
     def _emit(self, buff, offset):
         offset, size_offset = buff.skip(offset, 4)
 
-        performative = DescribedValue(self._performative_code, self._field_values)
+        performative = DescribedValue(self._descriptor, self._field_values)
 
         offset = buff.pack(offset, 4, "!BBH", 2, 0, self.channel)
         offset = emit_data(buff, offset, performative)
@@ -76,8 +76,7 @@ def _field_property(index):
 
 class OpenFrame(_Frame):
     __slots__ = ()
-
-    _performative_code = UnsignedLong(0 << 32 | 0x00000010)
+    _descriptor = UnsignedLong(0 << 32 | 0x00000010)
 
     container_id = _field_property(0)
     hostname = _field_property(1)
@@ -92,8 +91,7 @@ class OpenFrame(_Frame):
 
 class BeginFrame(_Frame):
     __slots__ = ()
-
-    _performative_code = UnsignedLong(0 << 32 | 0x00000011)
+    _descriptor = UnsignedLong(0 << 32 | 0x00000011)
 
     remote_channel = _field_property(0)
     next_outgoing_id = _field_property(1)
@@ -106,8 +104,7 @@ class BeginFrame(_Frame):
 
 class AttachFrame(_Frame):
     __slots__ = ()
-
-    _performative_code = UnsignedLong(0 << 32 | 0x00000012)
+    _descriptor = UnsignedLong(0 << 32 | 0x00000012)
 
     name = _field_property(0)
     handle = _field_property(1)
@@ -126,8 +123,7 @@ class AttachFrame(_Frame):
 
 class FlowFrame(_Frame):
     __slots__ = ()
-
-    _performative_code = UnsignedLong(0 << 32 | 0x00000013)
+    _descriptor = UnsignedLong(0 << 32 | 0x00000013)
 
     next_incomping_id = _field_property(0)
     incoming_window = _field_property(1)
@@ -143,8 +139,7 @@ class FlowFrame(_Frame):
 
 class TransferFrame(_Frame):
     __slots__ = ()
-
-    _performative_code = UnsignedLong(0 << 32 | 0x00000014)
+    _descriptor = UnsignedLong(0 << 32 | 0x00000014)
 
     handle = _field_property(0)
     delivery_id = _field_property(1)
@@ -160,8 +155,7 @@ class TransferFrame(_Frame):
 
 class DispositionFrame(_Frame):
     __slots__ = ()
-
-    _performative_code = UnsignedLong(0 << 32 | 0x00000015)
+    _descriptor = UnsignedLong(0 << 32 | 0x00000015)
 
     role = _field_property(0)
     first = _field_property(1)
@@ -171,8 +165,7 @@ class DispositionFrame(_Frame):
 
 class DetachFrame(_Frame):
     __slots__ = ()
-
-    _performative_code = UnsignedLong(0 << 32 | 0x00000016)
+    _descriptor = UnsignedLong(0 << 32 | 0x00000016)
 
     handle = _field_property(0)
     closed = _field_property(1)
@@ -180,19 +173,17 @@ class DetachFrame(_Frame):
 
 class EndFrame(_Frame):
     __slots__ = ()
-
-    _performative_code = UnsignedLong(0 << 32 | 0x00000017)
+    _descriptor = UnsignedLong(0 << 32 | 0x00000017)
 
     error = _field_property(0)
 
 class CloseFrame(_Frame):
     __slots__ = ()
-
-    _performative_code = UnsignedLong(0 << 32 | 0x00000018)
+    _descriptor = UnsignedLong(0 << 32 | 0x00000018)
 
     error = _field_property(0)
 
-_frame_classes_by_performative_code = {
+_frame_classes_by_descriptor = {
     UnsignedLong(0 << 32 | 0x00000010): OpenFrame,
     UnsignedLong(0 << 32 | 0x00000011): BeginFrame,
     UnsignedLong(0 << 32 | 0x00000012): AttachFrame,
@@ -203,12 +194,6 @@ _frame_classes_by_performative_code = {
     UnsignedLong(0 << 32 | 0x00000017): EndFrame,
     UnsignedLong(0 << 32 | 0x00000018): CloseFrame,
 }
-
-def _get_frame_for_performative_code(code):
-    try:
-        return _frames_by_performative_code[code]
-    except KeyError:
-        raise Exception("No frame for performative code 0x{:02X}".format(code))
 
 def emit_frame(buff, offset, frame):
     return frame._emit(buff, offset)
@@ -237,9 +222,9 @@ def parse_frame_body(buff, offset, end, channel):
     values = performative.value
 
     try:
-        frame_class = _frame_classes_by_performative_code[descriptor]
+        frame_class = _frame_classes_by_descriptor[descriptor]
     except KeyError:
-        raise Exception("No frame for performative code 0x{:02X}".format(descriptor))
+        raise Exception("No frame for descriptor 0x{:02X}".format(descriptor))
 
     return offset, frame_class(channel, values, payload)
 
