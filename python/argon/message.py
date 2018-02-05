@@ -22,7 +22,7 @@ from argon.data import *
 
 class _Section:
     __slots__ = ("_field_values",)
-    
+
     def __init__(self, field_values=None):
         self._field_values = field_values
 
@@ -35,7 +35,7 @@ class _Section:
 
 class _Header(_Section):
     _descriptor = UnsignedLong(0 << 32 | 0x00000070)
-    
+
     durable = _field_property(0)
     priority = _field_property(1)
     ttl = _field_property(2)
@@ -63,7 +63,7 @@ class _Properties(_Section):
 class Message:
     __slots__ = ("_header", "_delivery_annotations", "_message_annotations", "_properties",
                  "_application_properties", "_application_data", "_footer")
-    
+
     def __init__(self):
         self._header = _Header()
         self._delivery_annotations = DescribedValue(UnsignedLong(0 << 32 | 0x00000071), dict())
@@ -81,6 +81,8 @@ class Message:
         offset = emit_data(buff, offset, self._application_properties)
         offset = emit_data(buff, offset, self._application_data)
         offset = emit_data(buff, offset, self._footer)
+
+        return offset
 
     @property
     def body(self):

@@ -45,7 +45,10 @@ class _DebugSession(Session):
     def on_open(self):
         print("SESSION OPENED")
 
-        self.link.send_open()
+        target = Target()
+        target.address = "q0"
+
+        self.link.send_open(target=target)
 
     def on_close(self):
         print("SESSION CLOSED")
@@ -58,7 +61,19 @@ class _DebugLink(Link):
 
     def on_flow(self):
         print("LINK FLOW")
-        #self.send_transfer(b"x" * 32)
+
+        from argon.message import Message, emit_message
+
+        message = Message()
+        message.body = b"x" * 32
+
+        # XXX
+
+        buff = Buffer()
+        offset = emit_message(buff, 0, message)
+        octets = buff[0:offset]
+
+        self.send_transfer(payload=octets)
         self.send_close()
 
     def on_close(self):

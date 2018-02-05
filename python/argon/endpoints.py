@@ -17,6 +17,7 @@
 # under the License.
 #
 
+from argon.common import _field_property
 from argon.io import *
 
 class Connection(TcpConnection):
@@ -183,12 +184,14 @@ class Link(_Endpoint):
         self.session.links_by_name[self._name] = self
         self.session.links_by_handle[self._handle] = self
 
-    def send_open(self):
+    def send_open(self, target=None):
         frame = AttachFrame(self.channel)
         frame.name = self._name
         frame.handle = UnsignedInt(self._handle)
-        frame.role = False
+        frame.role = self._role
         frame.snd_settle_mode = UnsignedByte(1) # XXX Presettled
+
+        frame.target = target
 
         self.connection.send_frame(frame)
 
@@ -219,8 +222,34 @@ class Link(_Endpoint):
 
         self.connection.send_frame(frame)
 
-class _Terminus:
-    pass
+class _Terminus(DescribedValue):
+    def __init__(self, descriptor, value):
+        super().__init__(descriptor, value)
+
+        self._field_values = self._value # XXX
+
+    address = _field_property(0)
+    durable = _field_property(1)
+    expiry_policy = _field_property(2)
+    timeout = _field_property(3)
+    dynamic = _field_property(4)
+    dynamic_node_properties = _field_property(5)
+
+class Source(_Terminus):
+    def __init__(self):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000028), list())
+
+    distribution_mode = _field_property(6)
+    filter = _field_property(7)
+    default_outcome = _field_property(8)
+    outcomes = _field_property(9)
+    capabilities = _field_property(10)
+
+class Target(_Terminus):
+    def __init__(self):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000029), list())
+
+    capabilities = _field_property(6)
 
 class _Sequence:
     __slots__ = ("value",)
