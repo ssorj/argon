@@ -49,6 +49,8 @@ class Array:
         return "{}({}, {})".format(self.__class__.__name__, self.element_type, self.elements)
 
 class DescribedValue:
+    __slots__ = "_descriptor", "_value"
+
     def __init__(self, descriptor, value):
         self._descriptor = descriptor
         self._value = value

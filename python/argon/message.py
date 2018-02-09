@@ -20,21 +20,16 @@
 from argon.common import _field_property
 from argon.data import *
 
-class _Section:
-    __slots__ = ("_field_values",)
+class _Header(DescribedValue):
+    __slots__ = ()
 
-    def __init__(self, field_values=None):
-        self._field_values = field_values
+    def __init__(self, value=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000070), value)
 
-        if self._field_values is None:
-            self._field_values = []
+        if self._value is None:
+            self._value = list()
 
-    def emit(self, buff, offset):
-        section = DescribedValue(self._descriptor, self._field_values)
-        return emit_data(buff, offset, section)
-
-class _Header(_Section):
-    _descriptor = UnsignedLong(0 << 32 | 0x00000070)
+        self._field_values = self._value # XXX
 
     durable = _field_property(0)
     priority = _field_property(1)
@@ -42,9 +37,32 @@ class _Header(_Section):
     first_acquirer = _field_property(3)
     delivery_count = _field_property(4)
 
-class _Properties(_Section):
+class _Attributes(DescribedValue):
     __slots__ = ()
-    _descriptor = UnsignedLong(0 << 32 | 0x00000073)
+
+    def __init__(self, descriptor, value=None):
+        super().__init__(descriptor, value)
+
+        if self._value is None:
+            self._value = dict()
+
+class _DeliveryAnnotations(_Attributes):
+    __slots__ = ()
+
+    def __init__(self, value=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000071), value)
+
+class _MessageAnnotations(_Attributes):
+    __slots__ = ()
+
+    def __init__(self, value=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000072), value)
+
+class _Properties(DescribedValue):
+    __slots__ = ()
+
+    def __init__(self, value=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000073), value)
 
     message_id = _field_property(0)
     user_id = _field_property(1)
@@ -60,37 +78,142 @@ class _Properties(_Section):
     group_sequence = _field_property(11)
     reply_to_group_id = _field_property(12)
 
+class _ApplicationProperties(_Attributes):
+    __slots__ = ()
+
+    def __init__(self, value=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000074), value)
+
+class _ApplicationData(DescribedValue):
+    __slots__ = ()
+
+    def __init__(self, value=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000077), value)
+
+class _Footer(_Attributes):
+    __slots__ = ()
+
+    def __init__(self, value=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000078), value)
+
 class Message:
     __slots__ = ("_header", "_delivery_annotations", "_message_annotations", "_properties",
                  "_application_properties", "_application_data", "_footer")
 
     def __init__(self):
-        self._header = _Header()
-        self._delivery_annotations = DescribedValue(UnsignedLong(0 << 32 | 0x00000071), dict())
-        self._message_annotations = DescribedValue(UnsignedLong(0 << 32 | 0x00000072), dict())
-        self._properties = _Properties()
-        self._application_properties = DescribedValue(UnsignedLong(0 << 32 | 0x00000074), dict())
-        self._application_data = DescribedValue(UnsignedLong(0 << 32 | 0x00000077), None)
-        self._footer = DescribedValue(UnsignedLong(0 << 32 | 0x00000078), dict())
+        self._header = None
+        self._delivery_annotations = None
+        self._message_annotations = None
+        self._properties = None
+        self._application_properties = None
+        self._application_data = None
+        self._footer = None
 
-    def _emit(self, buff, offset):
-        offset = self._header.emit(buff, offset)
-        offset = emit_data(buff, offset, self._delivery_annotations)
-        offset = emit_data(buff, offset, self._message_annotations)
-        offset = self._properties.emit(buff, offset)
-        offset = emit_data(buff, offset, self._application_properties)
-        offset = emit_data(buff, offset, self._application_data)
-        offset = emit_data(buff, offset, self._footer)
+    def _get_header(self):
+        if self._header is None:
+            self._header = _Header()
 
-        return offset
+    def _get_properties(self):
+        if self._properties is None:
+            self._properties = _Properties()
+
+    def _get_application_data(self):
+        if self._application_data is None:
+            self._application_data = _ApplicationData()
+
+        return self._application_data
+
+    @property
+    def id(self):
+        return self._get_properties().message_id
+
+    @id.setter
+    def id(self, value):
+        self._get_properties().message_id = value
+
+    @property
+    def user_id(self):
+        return self._get_properties().user_id
+
+    @user_id.setter
+    def user_id(self, value):
+        self._get_properties().user_id = value
+
+    @property
+    def to(self):
+        return self._get_properties().to
+
+    @to.setter
+    def to(self, value):
+        self._get_properties().to = value
 
     @property
     def body(self):
-        return self._application_data.value
+        return self._get_application_data()._value
 
     @body.setter
     def body(self, value):
-        self._application_data.value = value
+        self._get_application_data()._value = value
+
+    @property
+    def durable(self):
+        return self._get_header().durable
+
+    @durable.setter
+    def durable(self, durable):
+        self._get_header().durable = durable
+
+    @property
+    def properties(self):
+        if self._application_properties is none:
+            self._application_properties = _ApplicationProperties()
+
+        return self._application_properties._value
+
+    @property
+    def delivery_annotations(self):
+        if self._delivery_annotations is none:
+            self._delivery_annotations = _deliveryannotations()
+
+        return self._delivery_annotations._value
+
+    @property
+    def message_annotations(self):
+        if self._message_annotations is none:
+            self._message_annotations = _messageannotations()
+
+        return self._message_annotations._value
+
+    @property
+    def footer(self):
+        if self._footer is None:
+            self._footer = _Footer()
+
+        return self._footer._value
+
+    def _emit(self, buff, offset):
+        if self._header is not None:
+            offset = self._header.emit(buff, offset)
+
+        if self._delivery_annotations is not None:
+            offset = emit_data(buff, offset, self._delivery_annotations)
+
+        if self._message_annotations is not None:
+            offset = emit_data(buff, offset, self._message_annotations)
+
+        if self._properties is not None:
+            offset = self._properties.emit(buff, offset)
+
+        if self._application_properties is not None:
+            offset = emit_data(buff, offset, self._application_properties)
+
+        if self._application_data is not None:
+            offset = emit_data(buff, offset, self._application_data)
+
+        if self._footer is not None:
+            offset = emit_data(buff, offset, self._footer)
+
+        return offset
 
 def emit_message(buff, offset, message):
     return message._emit(buff, offset)
