@@ -42,14 +42,14 @@ class Connection(TcpConnection):
 
         descriptor = frame.performative._descriptor
 
-        if descriptor == OPEN:
+        if descriptor == OPEN_DESCRIPTOR:
             assert self._opened is False and self._closed is False
 
             self._opened = True
             self.on_open()
             return
 
-        if descriptor == CLOSE:
+        if descriptor == CLOSE_DESCRIPTOR:
             assert self._opened is True and self._closed is False
 
             self._closed = True
@@ -58,16 +58,16 @@ class Connection(TcpConnection):
 
         session = self.sessions_by_channel[frame.channel]
 
-        if descriptor == BEGIN:
+        if descriptor == BEGIN_DESCRIPTOR:
             session._receive_open(frame)
             return
 
-        if descriptor == ATTACH:
+        if descriptor == ATTACH_DESCRIPTOR:
             link = session.links_by_name[frame.performative.name]
             link._receive_open(frame)
             return
 
-        if descriptor == FLOW:
+        if descriptor == FLOW_DESCRIPTOR:
             if frame.performative.handle is None:
                 return # XXX Handle flow for sessions
 
@@ -75,18 +75,18 @@ class Connection(TcpConnection):
             link._receive_flow(frame)
             return
 
-        if descriptor == TRANSFER:
+        if descriptor == TRANSFER_DESCRIPTOR:
             return # XXX Only sending for now
 
-        if descriptor == DISPOSITION:
+        if descriptor == DISPOSITION_DESCRIPTOR:
             return # XXX All presettled for now
 
-        if descriptor == DETACH:
+        if descriptor == DETACH_DESCRIPTOR:
             link = session.links_by_handle[frame.performative.handle]
             link._receive_close(frame)
             return
 
-        if descriptor == END:
+        if descriptor == END_DESCRIPTOR:
             session._receive_close(frame)
             return
 
@@ -223,8 +223,8 @@ class Link(_Endpoint):
 
         self.connection.send_frame(AmqpFrame(self.channel, performative))
 
-SOURCE = UnsignedLong(0x00000028)
-TARGET = UnsignedLong(0x00000029)
+_SOURCE_DESCRIPTOR = UnsignedLong(0x00000028)
+_TARGET_DESCRIPTOR = UnsignedLong(0x00000029)
 
 class _Terminus(DescribedValue):
     def __init__(self, descriptor, values):
@@ -242,7 +242,7 @@ class _Terminus(DescribedValue):
 
 class Source(_Terminus):
     def __init__(self, values=None):
-        super().__init__(SOURCE, values)
+        super().__init__(_SOURCE_DESCRIPTOR, values)
 
     distribution_mode = _field(6)
     filter = _field(7)
@@ -252,12 +252,12 @@ class Source(_Terminus):
 
 class Target(_Terminus):
     def __init__(self, values=None):
-        super().__init__(TARGET, values)
+        super().__init__(_TARGET_DESCRIPTOR, values)
 
     capabilities = _field(6)
 
-register_value_class(SOURCE, Source)
-register_value_class(TARGET, Target)
+register_value_class(_SOURCE_DESCRIPTOR, Source)
+register_value_class(_TARGET_DESCRIPTOR, Target)
 
 class _Sequence:
     __slots__ = ("value",)

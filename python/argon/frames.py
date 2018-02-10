@@ -20,26 +20,26 @@
 from argon.data import *
 from argon.data import _data_hex, _field, _hex
 
-OPEN = UnsignedLong(0x00000010)
-BEGIN = UnsignedLong(0x00000011)
-ATTACH = UnsignedLong(0x00000012)
-FLOW = UnsignedLong(0x00000013)
-TRANSFER = UnsignedLong(0x00000014)
-DISPOSITION = UnsignedLong(0x00000015)
-DETACH = UnsignedLong(0x00000016)
-END = UnsignedLong(0x00000017)
-CLOSE = UnsignedLong(0x00000018)
+OPEN_DESCRIPTOR = UnsignedLong(0x00000010)
+BEGIN_DESCRIPTOR = UnsignedLong(0x00000011)
+ATTACH_DESCRIPTOR = UnsignedLong(0x00000012)
+FLOW_DESCRIPTOR = UnsignedLong(0x00000013)
+TRANSFER_DESCRIPTOR = UnsignedLong(0x00000014)
+DISPOSITION_DESCRIPTOR = UnsignedLong(0x00000015)
+DETACH_DESCRIPTOR = UnsignedLong(0x00000016)
+END_DESCRIPTOR = UnsignedLong(0x00000017)
+CLOSE_DESCRIPTOR = UnsignedLong(0x00000018)
 
 _performative_names = {
-    OPEN: "Open",
-    BEGIN: "Begin",
-    ATTACH: "Attach",
-    FLOW: "Flow",
-    TRANSFER: "Transfer",
-    DISPOSITION: "Disposition",
-    DETACH: "Detach",
-    END: "End",
-    CLOSE: "Close",
+    OPEN_DESCRIPTOR: "Open",
+    BEGIN_DESCRIPTOR: "Begin",
+    ATTACH_DESCRIPTOR: "Attach",
+    FLOW_DESCRIPTOR: "Flow",
+    TRANSFER_DESCRIPTOR: "Transfer",
+    DISPOSITION_DESCRIPTOR: "Disposition",
+    DETACH_DESCRIPTOR: "Detach",
+    END_DESCRIPTOR: "End",
+    CLOSE_DESCRIPTOR: "Close",
 }
 
 class AmqpFrame:
@@ -78,20 +78,11 @@ class AmqpFrame:
 
         return offset
 
-class _Performative(DescribedValue):
-    __slots__ = ()
-
-    def __init__(self, descriptor, values=None):
-        super().__init__(descriptor, values)
-
-        if self._value is None:
-            self._value = list()
-
-class OpenPerformative(_Performative):
+class OpenPerformative(DescribedValue):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(OPEN, values)
+        super().__init__(OPEN_DESCRIPTOR, values)
 
     container_id = _field(0)
     hostname = _field(1)
@@ -104,11 +95,11 @@ class OpenPerformative(_Performative):
     desired_capabilities = _field(8)
     properties = _field(9)
 
-class BeginPerformative(_Performative):
+class BeginPerformative(DescribedValue):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(BEGIN, values)
+        super().__init__(BEGIN_DESCRIPTOR, values)
 
     remote_channel = _field(0)
     next_outgoing_id = _field(1)
@@ -119,11 +110,11 @@ class BeginPerformative(_Performative):
     desired_capabilities = _field(6)
     properties = _field(7)
 
-class AttachPerformative(_Performative):
+class AttachPerformative(DescribedValue):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(ATTACH, values)
+        super().__init__(ATTACH_DESCRIPTOR, values)
 
     name = _field(0)
     handle = _field(1)
@@ -140,11 +131,11 @@ class AttachPerformative(_Performative):
     desired_capabilities = _field(12)
     properties = _field(13)
 
-class FlowPerformative(_Performative):
+class FlowPerformative(DescribedValue):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(FLOW, values)
+        super().__init__(FLOW_DESCRIPTOR, values)
 
     next_incomping_id = _field(0)
     incoming_window = _field(1)
@@ -158,11 +149,11 @@ class FlowPerformative(_Performative):
     echo = _field(9)
     properties = _field(10)
 
-class TransferPerformative(_Performative):
+class TransferPerformative(DescribedValue):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(TRANSFER, values)
+        super().__init__(TRANSFER_DESCRIPTOR, values)
 
     handle = _field(0)
     delivery_id = _field(1)
@@ -176,11 +167,11 @@ class TransferPerformative(_Performative):
     aborted = _field(9)
     batchable = _field(10)
 
-class DispositionPerformative(_Performative):
+class DispositionPerformative(DescribedValue):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(DISPOSITION, values)
+        super().__init__(DISPOSITION_DESCRIPTOR, values)
 
     role = _field(0)
     first = _field(1)
@@ -188,41 +179,42 @@ class DispositionPerformative(_Performative):
     settled = _field(3)
     batchable = _field(4)
 
-class DetachPerformative(_Performative):
+class DetachPerformative(DescribedValue):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(DETACH, values)
+        super().__init__(DETACH_DESCRIPTOR, values)
 
     handle = _field(0)
     closed = _field(1)
     error = _field(2)
 
-class EndPerformative(_Performative):
+class EndPerformative(DescribedValue):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(END, values)
+        super().__init__(END_DESCRIPTOR, values)
 
     error = _field(0)
 
-class ClosePerformative(_Performative):
+class ClosePerformative(DescribedValue):
     __slots__ = ()
+    descriptor = CLOSE_DESCRIPTOR
 
     def __init__(self, values=None):
-        super().__init__(CLOSE, values)
+        super().__init__(CLOSE_DESCRIPTOR, values)
 
     error = _field(0)
 
-register_value_class(OPEN, OpenPerformative)
-register_value_class(BEGIN, BeginPerformative)
-register_value_class(ATTACH, AttachPerformative)
-register_value_class(FLOW, FlowPerformative)
-register_value_class(TRANSFER, TransferPerformative)
-register_value_class(DISPOSITION, DispositionPerformative)
-register_value_class(DETACH, DetachPerformative)
-register_value_class(END, EndPerformative)
-register_value_class(CLOSE, ClosePerformative)
+register_value_class(OPEN_DESCRIPTOR, OpenPerformative)
+register_value_class(BEGIN_DESCRIPTOR, BeginPerformative)
+register_value_class(ATTACH_DESCRIPTOR, AttachPerformative)
+register_value_class(FLOW_DESCRIPTOR, FlowPerformative)
+register_value_class(TRANSFER_DESCRIPTOR, TransferPerformative)
+register_value_class(DISPOSITION_DESCRIPTOR, DispositionPerformative)
+register_value_class(DETACH_DESCRIPTOR, DetachPerformative)
+register_value_class(END_DESCRIPTOR, EndPerformative)
+register_value_class(CLOSE_DESCRIPTOR, ClosePerformative)
 
 def emit_frame(buff, offset, frame):
     return frame._emit(buff, offset)
@@ -242,7 +234,7 @@ def parse_frame_body(buff, offset, end, channel):
     offset, performative = parse_data(buff, offset)
     offset, payload = buff.read(offset, end - offset)
 
-    assert isinstance(performative, _Performative), (type(performative), performative)
+    assert isinstance(performative, DescribedValue)
 
     return offset, AmqpFrame(channel, performative, payload)
 

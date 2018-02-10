@@ -63,12 +63,18 @@ class DescribedValue:
 
 def _field(index):
     def get(obj):
+        if obj._value is None:
+            return None # XXX defaults
+
         try:
             return obj._value[index]
         except IndexError:
             return None
 
     def set_(obj, value):
+        if obj._value is None:
+            obj._value = list()
+
         try:
             obj._value[index] = value
         except IndexError:
@@ -702,8 +708,6 @@ def emit_data(buff, offset, value):
     return data_type.emit(buff, offset, value)
 
 def parse_data(buff, offset):
-    #print("parse_data", _data_hex(buff[offset:offset + 20]), "...")
-
     offset, format_code, descriptor = _parse_constructor(buff, offset)
     data_type = _get_data_type_for_format_code(format_code)
     offset, value = data_type.parse_value(buff, offset, format_code)

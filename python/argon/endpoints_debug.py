@@ -65,7 +65,10 @@ class _DebugLink(Link):
         from argon.message import Message, emit_message
 
         message = Message()
-        message.body = b"x" * 32
+        message.id = 123
+        message.durable = True
+        message.body = [1, 2, 3]
+        message.properties["a"] = 1
 
         # XXX
 

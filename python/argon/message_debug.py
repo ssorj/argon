@@ -28,6 +28,8 @@ def _main():
     offset = 0
 
     message = Message()
+    message.id = 123
+    message.durable = True
     message.body = b"x" * 8
 
     start = offset

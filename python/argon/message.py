@@ -20,22 +20,19 @@
 from argon.data import *
 from argon.data import _field
 
-_HEADER = UnsignedLong(0x00000070)
-_DELIVERY_ANNOTATIONS = UnsignedLong(0x00000071)
-_MESSAGE_ANNOTATIONS = UnsignedLong(0x00000072)
-_PROPERTIES = UnsignedLong(0x00000073)
-_APPLICATION_PROPERTIES = UnsignedLong(0x00000074)
-_APPLICATION_DATA = UnsignedLong(0x00000077) # XXX
-_FOOTER = UnsignedLong(0x00000078)
+_HEADER_DESCRIPTOR = UnsignedLong(0x00000070)
+_DELIVERY_ANNOTATIONS_DESCRIPTOR = UnsignedLong(0x00000071)
+_MESSAGE_ANNOTATIONS_DESCRIPTOR = UnsignedLong(0x00000072)
+_PROPERTIES_DESCRIPTOR = UnsignedLong(0x00000073)
+_APPLICATION_PROPERTIES_DESCRIPTOR = UnsignedLong(0x00000074)
+_AMQP_VALUE_DESCRIPTOR = UnsignedLong(0x00000077) # XXX
+_FOOTER_DESCRIPTOR = UnsignedLong(0x00000078)
 
 class _Header(DescribedValue):
     __slots__ = ()
 
     def __init__(self, value=None):
-        super().__init__(_HEADER, value)
-
-        if self._value is None:
-            self._value = list()
+        super().__init__(_HEADER_DESCRIPTOR, value)
 
     durable = _field(0)
     priority = _field(1)
@@ -56,19 +53,19 @@ class _DeliveryAnnotations(_Attributes):
     __slots__ = ()
 
     def __init__(self, value=None):
-        super().__init__(_DELIVERY_ANNOTATIONS, value)
+        super().__init__(_DELIVERY_ANNOTATIONS_DESCRIPTOR, value)
 
 class _MessageAnnotations(_Attributes):
     __slots__ = ()
 
     def __init__(self, value=None):
-        super().__init__(_MESSAGE_ANNOTATIONS, value)
+        super().__init__(_MESSAGE_ANNOTATIONS_DESCRIPTOR, value)
 
 class _Properties(DescribedValue):
     __slots__ = ()
 
     def __init__(self, value=None):
-        super().__init__(_PROPERTIES, value)
+        super().__init__(_PROPERTIES_DESCRIPTOR, value)
 
     message_id = _field(0)
     user_id = _field(1)
@@ -88,19 +85,19 @@ class _ApplicationProperties(_Attributes):
     __slots__ = ()
 
     def __init__(self, value=None):
-        super().__init__(_APPLICATION_PROPERTIES, value)
+        super().__init__(_APPLICATION_PROPERTIES_DESCRIPTOR, value)
 
-class _ApplicationData(DescribedValue):
+class _AmqpValue(DescribedValue):
     __slots__ = ()
 
     def __init__(self, value=None):
-        super().__init__(_APPLICATION_DATA, value)
+        super().__init__(_AMQP_VALUE_DESCRIPTOR, value)
 
 class _Footer(_Attributes):
     __slots__ = ()
 
     def __init__(self, value=None):
-        super().__init__(_FOOTER, value)
+        super().__init__(_FOOTER_DESCRIPTOR, value)
 
 class Message:
     __slots__ = ("_header", "_delivery_annotations", "_message_annotations", "_properties",
@@ -119,13 +116,17 @@ class Message:
         if self._header is None:
             self._header = _Header()
 
+        return self._header
+
     def _get_properties(self):
         if self._properties is None:
             self._properties = _Properties()
 
+        return self._properties
+
     def _get_application_data(self):
         if self._application_data is None:
-            self._application_data = _ApplicationData()
+            self._application_data = _AmqpValue()
 
         return self._application_data
 
@@ -171,21 +172,21 @@ class Message:
 
     @property
     def properties(self):
-        if self._application_properties is none:
+        if self._application_properties is None:
             self._application_properties = _ApplicationProperties()
 
         return self._application_properties._value
 
     @property
     def delivery_annotations(self):
-        if self._delivery_annotations is none:
+        if self._delivery_annotations is None:
             self._delivery_annotations = _DeliveryAnnotations()
 
         return self._delivery_annotations._value
 
     @property
     def message_annotations(self):
-        if self._message_annotations is none:
+        if self._message_annotations is None:
             self._message_annotations = _MessageAnnotations()
 
         return self._message_annotations._value
@@ -199,7 +200,7 @@ class Message:
 
     def _emit(self, buff, offset):
         if self._header is not None:
-            offset = self._header.emit(buff, offset)
+            offset = emit_data(buff, offset, self._header)
 
         if self._delivery_annotations is not None:
             offset = emit_data(buff, offset, self._delivery_annotations)
@@ -208,7 +209,7 @@ class Message:
             offset = emit_data(buff, offset, self._message_annotations)
 
         if self._properties is not None:
-            offset = self._properties.emit(buff, offset)
+            offset = emit_data(buff, offset, self._properties)
 
         if self._application_properties is not None:
             offset = emit_data(buff, offset, self._application_properties)
