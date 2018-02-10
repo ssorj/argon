@@ -223,6 +223,9 @@ class Link(_Endpoint):
 
         self.connection.send_frame(AmqpFrame(self.channel, performative))
 
+SOURCE = UnsignedLong(0x00000028)
+TARGET = UnsignedLong(0x00000029)
+
 class _Terminus(DescribedValue):
     def __init__(self, descriptor, values):
         super().__init__(descriptor, values)
@@ -239,7 +242,7 @@ class _Terminus(DescribedValue):
 
 class Source(_Terminus):
     def __init__(self, values=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000028), values)
+        super().__init__(SOURCE, values)
 
     distribution_mode = _field(6)
     filter = _field(7)
@@ -249,12 +252,12 @@ class Source(_Terminus):
 
 class Target(_Terminus):
     def __init__(self, values=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000029), values)
+        super().__init__(TARGET, values)
 
     capabilities = _field(6)
 
-register_value_class(UnsignedLong(0 << 32 | 0x00000028), Source)
-register_value_class(UnsignedLong(0 << 32 | 0x00000029), Target)
+register_value_class(SOURCE, Source)
+register_value_class(TARGET, Target)
 
 class _Sequence:
     __slots__ = ("value",)

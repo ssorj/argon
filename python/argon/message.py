@@ -20,11 +20,19 @@
 from argon.data import *
 from argon.data import _field
 
+_HEADER = UnsignedLong(0x00000070)
+_DELIVERY_ANNOTATIONS = UnsignedLong(0x00000071)
+_MESSAGE_ANNOTATIONS = UnsignedLong(0x00000072)
+_PROPERTIES = UnsignedLong(0x00000073)
+_APPLICATION_PROPERTIES = UnsignedLong(0x00000074)
+_APPLICATION_DATA = UnsignedLong(0x00000077) # XXX
+_FOOTER = UnsignedLong(0x00000078)
+
 class _Header(DescribedValue):
     __slots__ = ()
 
     def __init__(self, value=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000070), value)
+        super().__init__(_HEADER, value)
 
         if self._value is None:
             self._value = list()
@@ -48,19 +56,19 @@ class _DeliveryAnnotations(_Attributes):
     __slots__ = ()
 
     def __init__(self, value=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000071), value)
+        super().__init__(_DELIVERY_ANNOTATIONS, value)
 
 class _MessageAnnotations(_Attributes):
     __slots__ = ()
 
     def __init__(self, value=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000072), value)
+        super().__init__(_MESSAGE_ANNOTATIONS, value)
 
 class _Properties(DescribedValue):
     __slots__ = ()
 
     def __init__(self, value=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000073), value)
+        super().__init__(_PROPERTIES, value)
 
     message_id = _field(0)
     user_id = _field(1)
@@ -80,19 +88,19 @@ class _ApplicationProperties(_Attributes):
     __slots__ = ()
 
     def __init__(self, value=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000074), value)
+        super().__init__(_APPLICATION_PROPERTIES, value)
 
 class _ApplicationData(DescribedValue):
     __slots__ = ()
 
     def __init__(self, value=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000077), value)
+        super().__init__(_APPLICATION_DATA, value)
 
 class _Footer(_Attributes):
     __slots__ = ()
 
     def __init__(self, value=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000078), value)
+        super().__init__(_FOOTER, value)
 
 class Message:
     __slots__ = ("_header", "_delivery_annotations", "_message_annotations", "_properties",
