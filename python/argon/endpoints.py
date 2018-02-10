@@ -226,8 +226,15 @@ class Sender(_Link):
     def __init__(self, session, address, name=None):
         super().__init__(session, False, name)
 
-        self._target = Target()
-        self._target.address = address
+        self._attach.target = Target()
+        self._attach.target.address = address
+
+class Receiver(_Link):
+    def __init__(self, session, address, name=None):
+        super().__init__(session, True, name)
+
+        self._attach.source = Source()
+        self._attach.source.address = address
 
 _SOURCE_DESCRIPTOR = UnsignedLong(0x00000028)
 _TARGET_DESCRIPTOR = UnsignedLong(0x00000029)

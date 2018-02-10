@@ -34,11 +34,11 @@ class _Header(DescribedValue):
     def __init__(self, value=None):
         super().__init__(_HEADER_DESCRIPTOR, value)
 
-    durable = _field(0)
-    priority = _field(1)
+    durable = _field(0, default=False)
+    priority = _field(1, default=UnsignedByte(4))
     ttl = _field(2)
-    first_acquirer = _field(3)
-    delivery_count = _field(4)
+    first_acquirer = _field(3, default=False)
+    delivery_count = _field(4, default=UnsignedInt(0))
 
 class _Attributes(DescribedValue):
     __slots__ = ()
