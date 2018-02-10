@@ -74,13 +74,17 @@ def _field(index, mandatory=False, default=None):
     def set_(obj, value):
         assert not mandatory or value is not None
 
+        if value == default:
+            return
+
         if obj._value is None:
             obj._value = list()
 
         try:
             obj._value[index] = value
         except IndexError:
-            obj._value += ([None] * (index - len(obj._value))) + [value]
+            if value is not None:
+                obj._value += ([None] * (index - len(obj._value))) + [value]
 
     return property(get, set_)
 
