@@ -61,17 +61,19 @@ class DescribedValue:
     def __eq__(self, other):
         return (self._descriptor, self._value) == (other._descriptor, other._value)
 
-def _field(index):
+def _field(index, mandatory=False, default=None):
     def get(obj):
         if obj._value is None:
-            return None # XXX defaults
+            return default
 
         try:
             return obj._value[index]
         except IndexError:
-            return None
+            return default
 
     def set_(obj, value):
+        assert not mandatory or value is not None
+
         if obj._value is None:
             obj._value = list()
 

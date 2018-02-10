@@ -84,10 +84,10 @@ class OpenPerformative(DescribedValue):
     def __init__(self, values=None):
         super().__init__(OPEN_DESCRIPTOR, values)
 
-    container_id = _field(0)
+    container_id = _field(0, mandatory=True)
     hostname = _field(1)
-    max_frame_size = _field(2)
-    channel_max = _field(3)
+    max_frame_size = _field(2, default=UnsignedInt(0xffffffff))
+    channel_max = _field(3, default=UnsignedShort(0xffff))
     idle_timeout = _field(4)
     outgoing_locales = _field(5)
     incoming_locales = _field(6)
@@ -102,9 +102,9 @@ class BeginPerformative(DescribedValue):
         super().__init__(BEGIN_DESCRIPTOR, values)
 
     remote_channel = _field(0)
-    next_outgoing_id = _field(1)
-    incoming_window = _field(2)
-    outgoing_window = _field(3)
+    next_outgoing_id = _field(1, mandatory=True)
+    incoming_window = _field(2, mandatory=True)
+    outgoing_window = _field(3, mandatory=True)
     handle_max = _field(4)
     offered_capabilities = _field(5)
     desired_capabilities = _field(6)
@@ -116,15 +116,15 @@ class AttachPerformative(DescribedValue):
     def __init__(self, values=None):
         super().__init__(ATTACH_DESCRIPTOR, values)
 
-    name = _field(0)
-    handle = _field(1)
-    role = _field(2)
-    snd_settle_mode = _field(3)
-    rcv_settle_mode = _field(4)
+    name = _field(0, mandatory=True)
+    handle = _field(1, mandatory=True)
+    role = _field(2, mandatory=True)
+    snd_settle_mode = _field(3, default=UnsignedByte(2)) # Mixed
+    rcv_settle_mode = _field(4, default=UnsignedByte(0)) # First
     source = _field(5)
     target = _field(6)
     unsettled = _field(7)
-    incoming_unsettled = _field(8)
+    incoming_unsettled = _field(8, default=False)
     initial_delivery_count = _field(9)
     max_message_size = _field(10)
     offered_capabilities = _field(11)
@@ -138,15 +138,15 @@ class FlowPerformative(DescribedValue):
         super().__init__(FLOW_DESCRIPTOR, values)
 
     next_incomping_id = _field(0)
-    incoming_window = _field(1)
-    next_outgoing_id = _field(2)
-    outgoing_window = _field(3)
+    incoming_window = _field(1, mandatory=True)
+    next_outgoing_id = _field(2, mandatory=True)
+    outgoing_window = _field(3, mandatory=True)
     handle = _field(4)
     delivery_count = _field(5)
     link_credit = _field(6)
     available = _field(7)
-    drain = _field(8)
-    echo = _field(9)
+    drain = _field(8, default=False)
+    echo = _field(9, default=False)
     properties = _field(10)
 
 class TransferPerformative(DescribedValue):
@@ -155,17 +155,17 @@ class TransferPerformative(DescribedValue):
     def __init__(self, values=None):
         super().__init__(TRANSFER_DESCRIPTOR, values)
 
-    handle = _field(0)
+    handle = _field(0, mandatory=True)
     delivery_id = _field(1)
     delivery_tag = _field(2)
     message_format = _field(3)
     settled = _field(4)
-    more = _field(5)
+    more = _field(5, default=False)
     rcv_settle_mode = _field(6)
     state = _field(7)
-    resume = _field(8)
-    aborted = _field(9)
-    batchable = _field(10)
+    resume = _field(8, default=False)
+    aborted = _field(9, default=False)
+    batchable = _field(10, default=False)
 
 class DispositionPerformative(DescribedValue):
     __slots__ = ()
@@ -173,8 +173,8 @@ class DispositionPerformative(DescribedValue):
     def __init__(self, values=None):
         super().__init__(DISPOSITION_DESCRIPTOR, values)
 
-    role = _field(0)
-    first = _field(1)
+    role = _field(0, mandatory=True)
+    first = _field(1, mandatory=True)
     last = _field(2)
     settled = _field(3)
     batchable = _field(4)
@@ -185,8 +185,8 @@ class DetachPerformative(DescribedValue):
     def __init__(self, values=None):
         super().__init__(DETACH_DESCRIPTOR, values)
 
-    handle = _field(0)
-    closed = _field(1)
+    handle = _field(0, mandatory=True)
+    closed = _field(1, default=False)
     error = _field(2)
 
 class EndPerformative(DescribedValue):
