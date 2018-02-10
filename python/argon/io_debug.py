@@ -20,29 +20,30 @@
 import sys as _sys
 
 from argon.io import *
+from argon.io import _hex
 
 class _DebugConnection(TcpConnection):
     def on_start(self):
-        frame = OpenFrame(0)
-        frame.container_id = "abc123"
+        frame = AmqpFrame(0, OpenPerformative())
+        frame.performative.container_id = "abc123"
         self.send_frame(frame)
 
-        frame = BeginFrame(0)
-        frame.next_outgoing_id = UnsignedInt(0)
-        frame.incoming_window = UnsignedInt(0xffff)
-        frame.outgoing_window = UnsignedInt(0xffff)
+        frame = AmqpFrame(0, BeginPerformative())
+        frame.performative.next_outgoing_id = UnsignedInt(0)
+        frame.performative.incoming_window = UnsignedInt(0xffff)
+        frame.performative.outgoing_window = UnsignedInt(0xffff)
         self.send_frame(frame)
 
-        frame = EndFrame(0)
+        frame = AmqpFrame(0, EndPerformative())
         self.send_frame(frame)
 
-        frame = AttachFrame(0)
-        frame.name = "abc"
-        frame.handle = UnsignedInt(0)
-        frame.role = False # sender
+        frame = AmqpFrame(0, AttachPerformative())
+        frame.performative.name = "abc"
+        frame.performative.handle = UnsignedInt(0)
+        frame.performative.role = False # sender
         self.send_frame(frame)
-        
-        frame = CloseFrame(0)
+
+        frame = AmqpFrame(0, ClosePerformative())
         self.send_frame(frame)
 
     def on_frame(self, frame):

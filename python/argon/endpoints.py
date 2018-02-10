@@ -17,8 +17,8 @@
 # under the License.
 #
 
-from argon.common import _field_property
 from argon.io import *
+from argon.frames import _field
 
 class Connection(TcpConnection):
     def __init__(self, host, port, container_id):
@@ -38,9 +38,11 @@ class Connection(TcpConnection):
         self.send_open()
 
     def on_frame(self, frame):
-        frame_type = type(frame)
+        assert isinstance(frame, AmqpFrame)
 
-        if frame_type is OpenFrame:
+        type_ = type(frame.performative)
+
+        if type_ is OpenPerformative:
             assert self._opened is False and self._closed is False
 
             self._opened = True
@@ -48,7 +50,7 @@ class Connection(TcpConnection):
 
             return
 
-        if frame_type is CloseFrame:
+        if type_ is ClosePerformative:
             assert self._opened is True and self._closed is False
 
             self._closed = True
@@ -58,43 +60,43 @@ class Connection(TcpConnection):
 
         session = self.sessions_by_channel[frame.channel]
 
-        if frame_type is BeginFrame:
+        if type_ is BeginPerformative:
             session._receive_open(frame)
             return
 
-        if frame_type is AttachFrame:
-            link = session.links_by_name[frame.name]
+        if type_ is AttachPerformative:
+            link = session.links_by_name[frame.performative.name]
             link._receive_open(frame)
             return
 
-        if frame_type is FlowFrame:
-            if frame.handle is None:
+        if type_ is FlowPerformative:
+            if frame.performative.handle is None:
                 return # XXX Handle flow for sessions
 
-            link = session.links_by_handle[frame.handle]
+            link = session.links_by_handle[frame.performative.handle]
             link._receive_flow(frame)
             return
 
-        if frame_type is TransferFrame:
+        if type_ is TransferPerformative:
             return # XXX Only sending for now
 
-        if frame_type is DispositionFrame:
+        if type_ is DispositionPerformative:
             return # XXX All presettled for now
 
-        if frame_type is DetachFrame:
-            link = session.links_by_handle[frame.handle]
+        if type_ is DetachPerformative:
+            link = session.links_by_handle[frame.performative.handle]
             link._receive_close(frame)
             return
 
-        if frame_type is EndFrame:
+        if type_ is EndPerformative:
             session._receive_close(frame)
             return
 
         raise Exception()
 
     def send_open(self):
-        frame = OpenFrame(0)
-        frame.container_id = self.container_id
+        frame = AmqpFrame(0, OpenPerformative())
+        frame.performative.container_id = self.container_id
 
         self.send_frame(frame)
 
@@ -102,7 +104,7 @@ class Connection(TcpConnection):
         pass
 
     def send_close(self, error=None):
-        frame = CloseFrame(0)
+        frame = AmqpFrame(0, ClosePerformative())
         self.send_frame(frame)
 
     def on_close(self):
@@ -150,19 +152,19 @@ class Session(_Endpoint):
         self.connection.sessions_by_channel[self.channel] = self
 
     def send_open(self):
-        frame = BeginFrame(self.channel)
-        frame.next_outgoing_id = UnsignedInt(self._next_outgoing_id)
-        frame.incoming_window = UnsignedInt(self._incoming_window)
-        frame.outgoing_window = UnsignedInt(self._outgoing_window)
+        frame = AmqpFrame(self.channel, BeginPerformative())
+        frame.performative.next_outgoing_id = UnsignedInt(self._next_outgoing_id)
+        frame.performative.incoming_window = UnsignedInt(self._incoming_window)
+        frame.performative.outgoing_window = UnsignedInt(self._outgoing_window)
 
         self.connection.send_frame(frame)
 
     def _receive_open(self, frame):
-        self._remote_channel = frame.remote_channel
+        self._remote_channel = frame.performative.remote_channel
         self.on_open()
 
     def send_close(self, error=None):
-        frame = EndFrame(self.channel)
+        frame = AmqpFrame(self.channel, EndPerformative())
         self.connection.send_frame(frame)
 
 class Link(_Endpoint):
@@ -185,13 +187,13 @@ class Link(_Endpoint):
         self.session.links_by_handle[self._handle] = self
 
     def send_open(self, target=None):
-        frame = AttachFrame(self.channel)
-        frame.name = self._name
-        frame.handle = UnsignedInt(self._handle)
-        frame.role = self._role
-        frame.snd_settle_mode = UnsignedByte(1) # XXX Presettled
+        frame = AmqpFrame(self.channel, AttachPerformative())
+        frame.performative.name = self._name
+        frame.performative.handle = UnsignedInt(self._handle)
+        frame.performative.role = self._role
+        frame.performative.snd_settle_mode = UnsignedByte(1) # XXX Presettled
 
-        frame.target = target
+        frame.performative.target = target
 
         self.connection.send_frame(frame)
 
@@ -199,57 +201,60 @@ class Link(_Endpoint):
         self.on_open()
 
     def _receive_flow(self, frame):
-        self.credit = frame.link_credit
+        self.credit = frame.performative.link_credit
         self.on_flow()
 
     def on_flow(self):
         pass
 
     def send_transfer(self, payload):
-        frame = TransferFrame(self.channel, payload=payload)
-        frame.handle = self._handle
-        frame.delivery_id = UnsignedInt(self._delivery_ids.next())
-        frame.delivery_tag = "delivery-{}".format(frame.delivery_id).encode("ascii") # XXX
-        frame.message_format = UnsignedInt(0)
-        frame.settled = True
+        frame = AmqpFrame(self.channel, TransferPerformative(), payload)
+        frame.performative.handle = self._handle
+        frame.performative.delivery_id = UnsignedInt(self._delivery_ids.next())
+        frame.performative.message_format = UnsignedInt(0)
+        frame.performative.settled = True
+
+        tag = "delivery-{}".format(frame.performative.delivery_id).encode("ascii") # XXX
+        frame.performative.delivery_tag = tag
 
         self.connection.send_frame(frame)
 
     def send_close(self, error=None):
-        frame = DetachFrame(self.channel)
-        frame.handle = self._handle
-        frame.closed = True
+        frame = AmqpFrame(self.channel, DetachPerformative())
+        frame.performative.handle = self._handle
+        frame.performative.closed = True
 
         self.connection.send_frame(frame)
 
 class _Terminus(DescribedValue):
-    def __init__(self, descriptor, value):
-        super().__init__(descriptor, value)
+    def __init__(self, descriptor, values):
+        super().__init__(descriptor, values)
 
-        self._field_values = self._value # XXX
+        if self._value is None:
+            self._value = list()
 
-    address = _field_property(0)
-    durable = _field_property(1)
-    expiry_policy = _field_property(2)
-    timeout = _field_property(3)
-    dynamic = _field_property(4)
-    dynamic_node_properties = _field_property(5)
+    address = _field(0)
+    durable = _field(1)
+    expiry_policy = _field(2)
+    timeout = _field(3)
+    dynamic = _field(4)
+    dynamic_node_properties = _field(5)
 
 class Source(_Terminus):
-    def __init__(self):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000028), list())
+    def __init__(self, values=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000028), values)
 
-    distribution_mode = _field_property(6)
-    filter = _field_property(7)
-    default_outcome = _field_property(8)
-    outcomes = _field_property(9)
-    capabilities = _field_property(10)
+    distribution_mode = _field(6)
+    filter = _field(7)
+    default_outcome = _field(8)
+    outcomes = _field(9)
+    capabilities = _field(10)
 
 class Target(_Terminus):
-    def __init__(self):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000029), list())
+    def __init__(self, values=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000029), values)
 
-    capabilities = _field_property(6)
+    capabilities = _field(6)
 
 class _Sequence:
     __slots__ = ("value",)

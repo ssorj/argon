@@ -18,9 +18,9 @@
 #
 
 from argon.common import *
-from argon.common import _hex, _micropython, _shorten, _time, _uuid_bytes
+from argon.common import _micropython, _shorten, _time, _uuid_bytes
 from argon.data import *
-from argon.data import _data_hex
+from argon.data import _data_hex, _hex
 
 _input_values = [
     None,

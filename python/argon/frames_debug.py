@@ -18,21 +18,21 @@
 #
 
 from argon.common import *
-from argon.common import _hex, _shorten, _time
+from argon.common import _shorten, _time
 from argon.frames import *
-from argon.frames import _frame_hex
+from argon.frames import _frame_hex, _hex
 
 _input_frames = [
-    OpenFrame(0, ["test0"]),
-    OpenFrame(1, ["test1", "example.org"]),
-    BeginFrame(0, [None, 0, 100, 100]),
-    AttachFrame(0),
-    FlowFrame(0),
-    TransferFrame(0, [], b"x" * 32),
-    DispositionFrame(0),
-    DetachFrame(0),
-    EndFrame(0),
-    CloseFrame(0),
+    AmqpFrame(0, OpenPerformative(["test0"])),
+    AmqpFrame(1, OpenPerformative(["test1", "example.org"])),
+    AmqpFrame(0, BeginPerformative([None, 0, 100, 100])),
+    AmqpFrame(0, AttachPerformative()),
+    AmqpFrame(0, FlowPerformative()),
+    AmqpFrame(0, TransferPerformative(), b"x" * 32),
+    AmqpFrame(0, DispositionPerformative()),
+    AmqpFrame(0, DetachPerformative()),
+    AmqpFrame(0, EndPerformative()),
+    AmqpFrame(0, ClosePerformative()),
 ]
 
 def _main():

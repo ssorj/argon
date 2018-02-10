@@ -17,8 +17,8 @@
 # under the License.
 #
 
-from argon.common import _field_property
 from argon.data import *
+from argon.data import _field
 
 class _Header(DescribedValue):
     __slots__ = ()
@@ -29,13 +29,11 @@ class _Header(DescribedValue):
         if self._value is None:
             self._value = list()
 
-        self._field_values = self._value # XXX
-
-    durable = _field_property(0)
-    priority = _field_property(1)
-    ttl = _field_property(2)
-    first_acquirer = _field_property(3)
-    delivery_count = _field_property(4)
+    durable = _field(0)
+    priority = _field(1)
+    ttl = _field(2)
+    first_acquirer = _field(3)
+    delivery_count = _field(4)
 
 class _Attributes(DescribedValue):
     __slots__ = ()
@@ -64,19 +62,19 @@ class _Properties(DescribedValue):
     def __init__(self, value=None):
         super().__init__(UnsignedLong(0 << 32 | 0x00000073), value)
 
-    message_id = _field_property(0)
-    user_id = _field_property(1)
-    to = _field_property(2)
-    subject = _field_property(3)
-    reply_to = _field_property(4)
-    correlation_id = _field_property(5)
-    content_type = _field_property(6)
-    content_encoding = _field_property(7)
-    absolute_expiry_time = _field_property(8)
-    creation_time = _field_property(9)
-    group_id = _field_property(10)
-    group_sequence = _field_property(11)
-    reply_to_group_id = _field_property(12)
+    message_id = _field(0)
+    user_id = _field(1)
+    to = _field(2)
+    subject = _field(3)
+    reply_to = _field(4)
+    correlation_id = _field(5)
+    content_type = _field(6)
+    content_encoding = _field(7)
+    absolute_expiry_time = _field(8)
+    creation_time = _field(9)
+    group_id = _field(10)
+    group_sequence = _field(11)
+    reply_to_group_id = _field(12)
 
 class _ApplicationProperties(_Attributes):
     __slots__ = ()

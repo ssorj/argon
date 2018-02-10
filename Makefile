@@ -23,6 +23,9 @@ export MICROPYPATH := python
 .PHONY: default
 default: endpoints-debug
 
+.PHONY: big-debug
+big-debug: data-debug frames-debug endpoints-debug message-debug
+
 .PHONY: data-debug
 data-debug: data-debug-cpython data-debug-micropython
 

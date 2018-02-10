@@ -17,7 +17,8 @@
 # under the License.
 #
 
-from argon.common import _hex, _shorten, _time
+from argon.common import _shorten, _time
+from argon.data import _hex
 from argon.message import *
 
 def _main():

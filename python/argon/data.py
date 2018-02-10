@@ -18,7 +18,7 @@
 #
 
 from argon.common import *
-from argon.common import _hex, _struct
+from argon.common import _struct
 
 class UnsignedByte(int): pass
 class UnsignedShort(int): pass
@@ -56,10 +56,10 @@ class DescribedValue:
         self._value = value
 
     def __repr__(self):
-        return "{}:{}".format(self._descriptor, self._value)
+        return ":{}: {}".format(self._descriptor, self._value)
 
     def __eq__(self, other):
-        return self._descriptor == other._descriptor and self._value == other._value
+        return (self._descriptor, self._value) == (other._descriptor, other._value)
 
 class _DataType:
     def __init__(self, python_type, format_code):
@@ -701,6 +701,24 @@ def _parse_constructor(buff, offset):
         offset, format_code = buff.unpack(offset, 1, "!B")
 
     return offset, format_code, descriptor
+
+def _field(index):
+    def get(obj):
+        try:
+            return obj._value[index]
+        except IndexError:
+            return None
+
+    def set_(obj, value):
+        try:
+            obj._value[index] = value
+        except IndexError:
+            obj._value += ([None] * (index - len(obj._value))) + [value]
+
+    return property(get, set_)
+
+def _hex(data):
+    return "".join(["{:02x}".format(x) for x in data])
 
 def _data_hex(octets):
     o = _hex(octets)

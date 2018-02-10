@@ -115,24 +115,6 @@ class Buffer:
                 self.octets.extend([0] * max(size, 2 * len(self.octets)))
                 self.view = memoryview(self.octets)
 
-def _field_property(index):
-    def get(obj):
-        try:
-            return obj._field_values[index]
-        except IndexError:
-            return None
-
-    def set_(obj, value):
-        try:
-            obj._field_values[index] = value
-        except IndexError:
-            obj._field_values += ([None] * (index - len(obj._field_values))) + [value]
-
-    return property(get, set_)
-
-def _hex(data):
-    return "".join(["{:02x}".format(x) for x in data])
-
 def _uuid_bytes():
     _random.seed(round(_time.time() * 1000))
 

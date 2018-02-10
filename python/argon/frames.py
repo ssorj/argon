@@ -17,41 +17,37 @@
 # under the License.
 #
 
-from argon.common import _field_property, _hex
 from argon.data import *
-from argon.data import _data_hex
+from argon.data import _data_hex, _field, _hex
 
-class _Frame:
-    __slots__ = "channel", "_field_values", "payload"
+class AmqpFrame:
+    __slots__ = "channel", "performative", "payload"
 
-    def __init__(self, channel, field_values=None, payload=None):
+    def __init__(self, channel, performative, payload=None):
         self.channel = channel
-        self._field_values = field_values
+        self.performative = performative
         self.payload = payload
 
-        if self._field_values is None:
-            self._field_values = []
-
+        # XXX Drop this
         if self.payload is None:
             self.payload = b""
 
     def __hash__(self):
-        return hash(self._field_values)
+        return hash(self.channel), hash(self.performative), hash(self.payload)
 
     def __eq__(self, other):
-        return self._field_values == other._field_values
+        return (self.channel, self.performative, self.payload) == \
+            (other.channel, other.performative, other.payload)
 
     def __repr__(self):
-        args = self.__class__.__name__, self.channel, self._field_values, len(self.payload)
+        args = self.__class__.__name__, self.channel, self.performative, len(self.payload)
         return "{}({}, {}, {})".format(*args)
 
     def _emit(self, buff, offset):
         offset, size_offset = buff.skip(offset, 4)
 
-        performative = DescribedValue(self._descriptor, self._field_values)
-
         offset = buff.pack(offset, 4, "!BBH", 2, 0, self.channel)
-        offset = emit_data(buff, offset, performative)
+        offset = emit_data(buff, offset, self.performative)
         offset = buff.write(offset, self.payload)
 
         size = offset - size_offset
@@ -59,125 +55,152 @@ class _Frame:
 
         return offset
 
-class OpenFrame(_Frame):
+class _Performative(DescribedValue):
     __slots__ = ()
-    _descriptor = UnsignedLong(0 << 32 | 0x00000010)
 
-    container_id = _field_property(0)
-    hostname = _field_property(1)
-    max_frame_size = _field_property(2)
-    channel_max = _field_property(3)
-    idle_timeout = _field_property(4)
-    outgoing_locales = _field_property(5)
-    incoming_locales = _field_property(6)
-    offered_capabilities = _field_property(7)
-    desired_capabilities = _field_property(8)
-    properties = _field_property(9)
+    def __init__(self, descriptor, values=None):
+        super().__init__(descriptor, values)
 
-class BeginFrame(_Frame):
+        if self._value is None:
+            self._value = list()
+
+class OpenPerformative(_Performative):
     __slots__ = ()
-    _descriptor = UnsignedLong(0 << 32 | 0x00000011)
 
-    remote_channel = _field_property(0)
-    next_outgoing_id = _field_property(1)
-    incoming_window = _field_property(2)
-    outgoing_window = _field_property(3)
-    handle_max = _field_property(4)
-    offered_capabilities = _field_property(5)
-    desired_capabilities = _field_property(6)
-    properties = _field_property(7)
+    def __init__(self, values=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000010), values)
 
-class AttachFrame(_Frame):
+    container_id = _field(0)
+    hostname = _field(1)
+    max_frame_size = _field(2)
+    channel_max = _field(3)
+    idle_timeout = _field(4)
+    outgoing_locales = _field(5)
+    incoming_locales = _field(6)
+    offered_capabilities = _field(7)
+    desired_capabilities = _field(8)
+    properties = _field(9)
+
+class BeginPerformative(_Performative):
     __slots__ = ()
-    _descriptor = UnsignedLong(0 << 32 | 0x00000012)
 
-    name = _field_property(0)
-    handle = _field_property(1)
-    role = _field_property(2)
-    snd_settle_mode = _field_property(3)
-    rcv_settle_mode = _field_property(4)
-    source = _field_property(5)
-    target = _field_property(6)
-    unsettled = _field_property(7)
-    incoming_unsettled = _field_property(8)
-    initial_delivery_count = _field_property(9)
-    max_message_size = _field_property(10)
-    offered_capabilities = _field_property(11)
-    desired_capabilities = _field_property(12)
-    properties = _field_property(13)
+    def __init__(self, values=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000011), values)
 
-class FlowFrame(_Frame):
+    remote_channel = _field(0)
+    next_outgoing_id = _field(1)
+    incoming_window = _field(2)
+    outgoing_window = _field(3)
+    handle_max = _field(4)
+    offered_capabilities = _field(5)
+    desired_capabilities = _field(6)
+    properties = _field(7)
+
+class AttachPerformative(_Performative):
     __slots__ = ()
-    _descriptor = UnsignedLong(0 << 32 | 0x00000013)
 
-    next_incomping_id = _field_property(0)
-    incoming_window = _field_property(1)
-    next_outgoing_id = _field_property(2)
-    outgoing_window = _field_property(3)
-    handle = _field_property(4)
-    delivery_count = _field_property(5)
-    link_credit = _field_property(6)
-    available = _field_property(7)
-    drain = _field_property(8)
-    echo = _field_property(9)
-    properties = _field_property(10)
+    def __init__(self, values=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000012), values)
 
-class TransferFrame(_Frame):
+    name = _field(0)
+    handle = _field(1)
+    role = _field(2)
+    snd_settle_mode = _field(3)
+    rcv_settle_mode = _field(4)
+    source = _field(5)
+    target = _field(6)
+    unsettled = _field(7)
+    incoming_unsettled = _field(8)
+    initial_delivery_count = _field(9)
+    max_message_size = _field(10)
+    offered_capabilities = _field(11)
+    desired_capabilities = _field(12)
+    properties = _field(13)
+
+class FlowPerformative(_Performative):
     __slots__ = ()
-    _descriptor = UnsignedLong(0 << 32 | 0x00000014)
 
-    handle = _field_property(0)
-    delivery_id = _field_property(1)
-    delivery_tag = _field_property(2)
-    message_format = _field_property(3)
-    settled = _field_property(4)
-    more = _field_property(5)
-    rcv_settle_mode = _field_property(6)
-    state = _field_property(7)
-    resume = _field_property(8)
-    aborted = _field_property(9)
-    batchable = _field_property(10)
+    def __init__(self, values=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000013), values)
 
-class DispositionFrame(_Frame):
+    next_incomping_id = _field(0)
+    incoming_window = _field(1)
+    next_outgoing_id = _field(2)
+    outgoing_window = _field(3)
+    handle = _field(4)
+    delivery_count = _field(5)
+    link_credit = _field(6)
+    available = _field(7)
+    drain = _field(8)
+    echo = _field(9)
+    properties = _field(10)
+
+class TransferPerformative(_Performative):
     __slots__ = ()
-    _descriptor = UnsignedLong(0 << 32 | 0x00000015)
 
-    role = _field_property(0)
-    first = _field_property(1)
-    last = _field_property(2)
-    settled = _field_property(3)
-    batchable = _field_property(4)
+    def __init__(self, values=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000014), values)
 
-class DetachFrame(_Frame):
+    handle = _field(0)
+    delivery_id = _field(1)
+    delivery_tag = _field(2)
+    message_format = _field(3)
+    settled = _field(4)
+    more = _field(5)
+    rcv_settle_mode = _field(6)
+    state = _field(7)
+    resume = _field(8)
+    aborted = _field(9)
+    batchable = _field(10)
+
+class DispositionPerformative(_Performative):
     __slots__ = ()
-    _descriptor = UnsignedLong(0 << 32 | 0x00000016)
 
-    handle = _field_property(0)
-    closed = _field_property(1)
-    error = _field_property(2)
+    def __init__(self, values=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000015), values)
 
-class EndFrame(_Frame):
+    role = _field(0)
+    first = _field(1)
+    last = _field(2)
+    settled = _field(3)
+    batchable = _field(4)
+
+class DetachPerformative(_Performative):
     __slots__ = ()
-    _descriptor = UnsignedLong(0 << 32 | 0x00000017)
 
-    error = _field_property(0)
+    def __init__(self, values=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000016), values)
 
-class CloseFrame(_Frame):
+    handle = _field(0)
+    closed = _field(1)
+    error = _field(2)
+
+class EndPerformative(_Performative):
     __slots__ = ()
-    _descriptor = UnsignedLong(0 << 32 | 0x00000018)
 
-    error = _field_property(0)
+    def __init__(self, values=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000017), values)
 
-_frame_classes_by_descriptor = {
-    UnsignedLong(0 << 32 | 0x00000010): OpenFrame,
-    UnsignedLong(0 << 32 | 0x00000011): BeginFrame,
-    UnsignedLong(0 << 32 | 0x00000012): AttachFrame,
-    UnsignedLong(0 << 32 | 0x00000013): FlowFrame,
-    UnsignedLong(0 << 32 | 0x00000014): TransferFrame,
-    UnsignedLong(0 << 32 | 0x00000015): DispositionFrame,
-    UnsignedLong(0 << 32 | 0x00000016): DetachFrame,
-    UnsignedLong(0 << 32 | 0x00000017): EndFrame,
-    UnsignedLong(0 << 32 | 0x00000018): CloseFrame,
+    error = _field(0)
+
+class ClosePerformative(_Performative):
+    __slots__ = ()
+
+    def __init__(self, values=None):
+        super().__init__(UnsignedLong(0 << 32 | 0x00000018), values)
+
+    error = _field(0)
+
+_performative_classes_by_descriptor = {
+    UnsignedLong(0 << 32 | 0x00000010): OpenPerformative,
+    UnsignedLong(0 << 32 | 0x00000011): BeginPerformative,
+    UnsignedLong(0 << 32 | 0x00000012): AttachPerformative,
+    UnsignedLong(0 << 32 | 0x00000013): FlowPerformative,
+    UnsignedLong(0 << 32 | 0x00000014): TransferPerformative,
+    UnsignedLong(0 << 32 | 0x00000015): DispositionPerformative,
+    UnsignedLong(0 << 32 | 0x00000016): DetachPerformative,
+    UnsignedLong(0 << 32 | 0x00000017): EndPerformative,
+    UnsignedLong(0 << 32 | 0x00000018): ClosePerformative,
 }
 
 def emit_frame(buff, offset, frame):
@@ -204,11 +227,13 @@ def parse_frame_body(buff, offset, end, channel):
     values = performative._value
 
     try:
-        frame_class = _frame_classes_by_descriptor[descriptor]
+        performative_class = _performative_classes_by_descriptor[descriptor]
     except KeyError:
         raise Exception("No frame for descriptor 0x{:02X}".format(descriptor))
 
-    return offset, frame_class(channel, values, payload)
+    performative = performative_class(values)
+
+    return offset, AmqpFrame(channel, performative, payload)
 
 def _frame_hex(octets):
     o = _hex(octets)

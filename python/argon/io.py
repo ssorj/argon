@@ -20,9 +20,9 @@
 import sys as _sys
 
 from argon.common import *
-from argon.common import _hex, _micropython, _time, _select, _socket, _struct
+from argon.common import _micropython, _time, _select, _socket, _struct
 from argon.frames import *
-from argon.frames import _frame_hex
+from argon.frames import _frame_hex, _hex
 
 class TcpConnection:
     def __init__(self, host, port):
