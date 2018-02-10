@@ -40,7 +40,7 @@ class AmqpFrame:
             (other.channel, other.performative, other.payload)
 
     def __repr__(self):
-        args = self.__class__.__name__, self.channel, self.performative, len(self.payload)
+        args = self.performative._name, self.channel, self.performative, len(self.payload)
         return "{}({}, {}, {})".format(*args)
 
     def _emit(self, buff, offset):
@@ -56,11 +56,13 @@ class AmqpFrame:
         return offset
 
 class _Performative(DescribedValue):
-    __slots__ = ()
+    __slots__ = ("_name")
 
-    def __init__(self, descriptor, values=None):
+    def __init__(self, descriptor, name, values=None):
         super().__init__(descriptor, values)
 
+        self._name = name
+        
         if self._value is None:
             self._value = list()
 
@@ -68,7 +70,7 @@ class OpenPerformative(_Performative):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000010), values)
+        super().__init__(UnsignedLong(0 << 32 | 0x00000010), "open", values)
 
     container_id = _field(0)
     hostname = _field(1)
@@ -85,7 +87,7 @@ class BeginPerformative(_Performative):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000011), values)
+        super().__init__(UnsignedLong(0 << 32 | 0x00000011), "begin", values)
 
     remote_channel = _field(0)
     next_outgoing_id = _field(1)
@@ -100,7 +102,7 @@ class AttachPerformative(_Performative):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000012), values)
+        super().__init__(UnsignedLong(0 << 32 | 0x00000012), "attach", values)
 
     name = _field(0)
     handle = _field(1)
@@ -121,7 +123,7 @@ class FlowPerformative(_Performative):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000013), values)
+        super().__init__(UnsignedLong(0 << 32 | 0x00000013), "flow", values)
 
     next_incomping_id = _field(0)
     incoming_window = _field(1)
@@ -139,7 +141,7 @@ class TransferPerformative(_Performative):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000014), values)
+        super().__init__(UnsignedLong(0 << 32 | 0x00000014), "transfer", values)
 
     handle = _field(0)
     delivery_id = _field(1)
@@ -157,7 +159,7 @@ class DispositionPerformative(_Performative):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000015), values)
+        super().__init__(UnsignedLong(0 << 32 | 0x00000015), "disposition", values)
 
     role = _field(0)
     first = _field(1)
@@ -169,7 +171,7 @@ class DetachPerformative(_Performative):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000016), values)
+        super().__init__(UnsignedLong(0 << 32 | 0x00000016), "detach", values)
 
     handle = _field(0)
     closed = _field(1)
@@ -179,7 +181,7 @@ class EndPerformative(_Performative):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000017), values)
+        super().__init__(UnsignedLong(0 << 32 | 0x00000017), "end", values)
 
     error = _field(0)
 
@@ -187,7 +189,7 @@ class ClosePerformative(_Performative):
     __slots__ = ()
 
     def __init__(self, values=None):
-        super().__init__(UnsignedLong(0 << 32 | 0x00000018), values)
+        super().__init__(UnsignedLong(0 << 32 | 0x00000018), "close", values)
 
     error = _field(0)
 

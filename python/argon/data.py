@@ -56,7 +56,7 @@ class DescribedValue:
         self._value = value
 
     def __repr__(self):
-        return ":{}: {}".format(self._descriptor, self._value)
+        return "<{}>{}".format(self._descriptor, self._value)
 
     def __eq__(self, other):
         return (self._descriptor, self._value) == (other._descriptor, other._value)
