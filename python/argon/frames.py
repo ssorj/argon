@@ -191,17 +191,15 @@ class ClosePerformative(_Performative):
 
     error = _field(0)
 
-_performative_classes_by_descriptor = {
-    UnsignedLong(0 << 32 | 0x00000010): OpenPerformative,
-    UnsignedLong(0 << 32 | 0x00000011): BeginPerformative,
-    UnsignedLong(0 << 32 | 0x00000012): AttachPerformative,
-    UnsignedLong(0 << 32 | 0x00000013): FlowPerformative,
-    UnsignedLong(0 << 32 | 0x00000014): TransferPerformative,
-    UnsignedLong(0 << 32 | 0x00000015): DispositionPerformative,
-    UnsignedLong(0 << 32 | 0x00000016): DetachPerformative,
-    UnsignedLong(0 << 32 | 0x00000017): EndPerformative,
-    UnsignedLong(0 << 32 | 0x00000018): ClosePerformative,
-}
+register_value_class(UnsignedLong(0 << 32 | 0x00000010), OpenPerformative)
+register_value_class(UnsignedLong(0 << 32 | 0x00000011), BeginPerformative)
+register_value_class(UnsignedLong(0 << 32 | 0x00000012), AttachPerformative)
+register_value_class(UnsignedLong(0 << 32 | 0x00000013), FlowPerformative)
+register_value_class(UnsignedLong(0 << 32 | 0x00000014), TransferPerformative)
+register_value_class(UnsignedLong(0 << 32 | 0x00000015), DispositionPerformative)
+register_value_class(UnsignedLong(0 << 32 | 0x00000016), DetachPerformative)
+register_value_class(UnsignedLong(0 << 32 | 0x00000017), EndPerformative)
+register_value_class(UnsignedLong(0 << 32 | 0x00000018), ClosePerformative)
 
 def emit_frame(buff, offset, frame):
     return frame._emit(buff, offset)
@@ -222,16 +220,7 @@ def parse_frame_body(buff, offset, end, channel):
     offset, payload = buff.read(offset, end - offset)
 
     assert isinstance(performative, DescribedValue)
-
-    descriptor = performative._descriptor
-    values = performative._value
-
-    try:
-        performative_class = _performative_classes_by_descriptor[descriptor]
-    except KeyError:
-        raise Exception("No frame for descriptor 0x{:02X}".format(descriptor))
-
-    performative = performative_class(values)
+    assert type(performative) != DescribedValue # XXX
 
     return offset, AmqpFrame(channel, performative, payload)
 

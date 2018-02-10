@@ -18,7 +18,7 @@
 #
 
 from argon.common import *
-from argon.common import _struct
+from argon.common import _hex, _struct
 
 class UnsignedByte(int): pass
 class UnsignedShort(int): pass
@@ -60,6 +60,21 @@ class DescribedValue:
 
     def __eq__(self, other):
         return (self._descriptor, self._value) == (other._descriptor, other._value)
+
+def _field(index):
+    def get(obj):
+        try:
+            return obj._value[index]
+        except IndexError:
+            return None
+
+    def set_(obj, value):
+        try:
+            obj._value[index] = value
+        except IndexError:
+            obj._value += ([None] * (index - len(obj._value))) + [value]
+
+    return property(get, set_)
 
 class _DataType:
     def __init__(self, python_type, format_code):
@@ -670,6 +685,12 @@ def _get_data_type_for_python_type(python_type):
 
     raise Exception("No data type for Python type {}".format(python_type))
 
+_value_classes_by_descriptor = dict()
+
+def register_value_class(descriptor, value_class):
+    assert descriptor not in _value_classes_by_descriptor
+    _value_classes_by_descriptor[descriptor] = value_class
+
 def emit_data(buff, offset, value):
     python_type = type(value)
 
@@ -688,7 +709,11 @@ def parse_data(buff, offset):
     offset, value = data_type.parse_value(buff, offset, format_code)
 
     if descriptor is not None:
-        value = DescribedValue(descriptor, value)
+        try:
+            value_class = _value_classes_by_descriptor[descriptor]
+            value = value_class(value)
+        except KeyError:
+            value = DescribedValue(descriptor, value)
 
     return offset, value
 
@@ -701,24 +726,6 @@ def _parse_constructor(buff, offset):
         offset, format_code = buff.unpack(offset, 1, "!B")
 
     return offset, format_code, descriptor
-
-def _field(index):
-    def get(obj):
-        try:
-            return obj._value[index]
-        except IndexError:
-            return None
-
-    def set_(obj, value):
-        try:
-            obj._value[index] = value
-        except IndexError:
-            obj._value += ([None] * (index - len(obj._value))) + [value]
-
-    return property(get, set_)
-
-def _hex(data):
-    return "".join(["{:02x}".format(x) for x in data])
 
 def _data_hex(octets):
     o = _hex(octets)
