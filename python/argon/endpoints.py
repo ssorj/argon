@@ -17,14 +17,19 @@
 # under the License.
 #
 
+from argon.common import _hex, _uuid_bytes
 from argon.io import *
 from argon.frames import _field
 
 class Connection(TcpConnection):
-    def __init__(self, host, port, container_id):
+    def __init__(self, host, port, container_id=None):
         super().__init__(host, port)
 
-        self.container_id = container_id
+        if container_id is None:
+            container_id = _hex(_uuid_bytes())
+
+        self._open = OpenPerformative()
+        self._open.container_id = container_id
 
         self._opened = False
         self._closed = False
@@ -33,6 +38,10 @@ class Connection(TcpConnection):
 
         self.sessions = list()
         self.sessions_by_channel = dict()
+
+    @property
+    def container_id(self):
+        return self._open.container_id
 
     def on_start(self):
         self.send_open()
@@ -93,10 +102,7 @@ class Connection(TcpConnection):
         raise Exception()
 
     def send_open(self):
-        performative = OpenPerformative()
-        performative.container_id = self.container_id
-
-        self.send_frame(AmqpFrame(0, performative))
+        self.send_frame(AmqpFrame(0, self._open))
 
     def on_open(self):
         pass
@@ -135,10 +141,10 @@ class Session(_Endpoint):
     def __init__(self, connection):
         super().__init__(connection, connection._channel_ids.next())
 
-        self._remote_channel = None
-        self._next_outgoing_id = 0
-        self._incoming_window = 0xffff
-        self._outgoing_window = 0xffff
+        self._begin = BeginPerformative()
+        self._begin.next_outgoing_id = UnsignedInt(0)
+        self._begin.incoming_window = UnsignedInt(0xffffffff)
+        self._begin.outgoing_window = UnsignedInt(0xffffffff)
 
         self._link_handles = _Sequence()
 
@@ -150,12 +156,7 @@ class Session(_Endpoint):
         self.connection.sessions_by_channel[self.channel] = self
 
     def send_open(self):
-        performative = BeginPerformative()
-        performative.next_outgoing_id = UnsignedInt(self._next_outgoing_id)
-        performative.incoming_window = UnsignedInt(self._incoming_window)
-        performative.outgoing_window = UnsignedInt(self._outgoing_window)
-
-        self.connection.send_frame(AmqpFrame(self.channel, performative))
+        self.connection.send_frame(AmqpFrame(self.channel, self._begin))
 
     def _receive_open(self, frame):
         self._remote_channel = frame.performative.remote_channel
@@ -165,34 +166,33 @@ class Session(_Endpoint):
         performative = EndPerformative()
         self.connection.send_frame(AmqpFrame(self.channel, performative))
 
-class Link(_Endpoint):
-    def __init__(self, session, name=None):
+class _Link(_Endpoint):
+    def __init__(self, session, role, name=None):
         super().__init__(session.connection, session.channel)
 
         self.session = session
 
-        self._name = name
-        self._handle = self.session._link_handles.next()
-        self._role = False # Sender
+        handle = UnsignedInt(self.session._link_handles.next())
 
-        if self._name is None:
-            self._name = "{}-{}".format(self.connection.container_id, self._handle)
+        if name is None:
+            name = "{}-{}".format(self.connection.container_id, handle)
+
+        self._attach = AttachPerformative()
+        self._attach.name = name
+        self._attach.handle = handle
+        self._attach.role = role
+        self._attach.snd_settle_mode = UnsignedByte(1) # XXX Presettled
+        self._attach.source = None
+        self._attach.target = None
 
         self._delivery_ids = _Sequence()
 
         self.session.links.append(self)
-        self.session.links_by_name[self._name] = self
-        self.session.links_by_handle[self._handle] = self
+        self.session.links_by_name[self._attach.name] = self
+        self.session.links_by_handle[self._attach.handle] = self
 
-    def send_open(self, target=None):
-        performative = AttachPerformative()
-        performative.name = self._name
-        performative.handle = UnsignedInt(self._handle)
-        performative.role = self._role
-        performative.snd_settle_mode = UnsignedByte(1) # XXX Presettled
-        performative.target = target
-
-        self.connection.send_frame(AmqpFrame(self.channel, performative))
+    def send_open(self):
+        self.connection.send_frame(AmqpFrame(self.channel, self._attach))
 
     def _receive_open(self, frame):
         self.on_open()
@@ -206,7 +206,7 @@ class Link(_Endpoint):
 
     def send_transfer(self, payload):
         performative = TransferPerformative()
-        performative.handle = self._handle
+        performative.handle = self._attach.handle
         performative.delivery_id = UnsignedInt(self._delivery_ids.next())
         performative.settled = True
 
@@ -217,10 +217,17 @@ class Link(_Endpoint):
 
     def send_close(self, error=None):
         performative = DetachPerformative()
-        performative.handle = self._handle
+        performative.handle = self._attach.handle
         performative.closed = True
 
         self.connection.send_frame(AmqpFrame(self.channel, performative))
+
+class Sender(_Link):
+    def __init__(self, session, address, name=None):
+        super().__init__(session, False, name)
+
+        self._target = Target()
+        self._target.address = address
 
 _SOURCE_DESCRIPTOR = UnsignedLong(0x00000028)
 _TARGET_DESCRIPTOR = UnsignedLong(0x00000029)

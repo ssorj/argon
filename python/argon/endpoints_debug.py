@@ -22,7 +22,7 @@ import sys as _sys
 from argon.endpoints import *
 
 class _DebugConnection(Connection):
-    def __init__(self, host, port, container_id):
+    def __init__(self, host, port, container_id=None):
         super().__init__(host, port, container_id)
 
         self.session = _DebugSession(self)
@@ -40,7 +40,7 @@ class _DebugSession(Session):
     def __init__(self, connection):
         super().__init__(connection)
 
-        self.link = _DebugLink(self)
+        self.sender = _DebugSender(self, "q0")
 
     def on_open(self):
         print("SESSION OPENED")
@@ -48,14 +48,14 @@ class _DebugSession(Session):
         target = Target()
         target.address = "q0"
 
-        self.link.send_open(target=target)
+        self.sender.send_open()
 
     def on_close(self):
         print("SESSION CLOSED")
 
         self.connection.send_close()
 
-class _DebugLink(Link):
+class _DebugSender(Sender):
     def on_open(self):
         print("LINK OPENED")
 
@@ -82,7 +82,7 @@ class _DebugLink(Link):
         self.session.send_close()
 
 def _main():
-    conn = _DebugConnection("127.0.0.1", 5672, "abc")
+    conn = _DebugConnection("127.0.0.1", 5672)
     conn.run()
 
 if __name__ == "__main__":
