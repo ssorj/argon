@@ -179,14 +179,14 @@ class Message:
     @property
     def delivery_annotations(self):
         if self._delivery_annotations is none:
-            self._delivery_annotations = _deliveryannotations()
+            self._delivery_annotations = _DeliveryAnnotations()
 
         return self._delivery_annotations._value
 
     @property
     def message_annotations(self):
         if self._message_annotations is none:
-            self._message_annotations = _messageannotations()
+            self._message_annotations = _MessageAnnotations()
 
         return self._message_annotations._value
 
