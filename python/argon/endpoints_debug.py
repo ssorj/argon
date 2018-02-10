@@ -25,7 +25,7 @@ class _DebugConnection(Connection):
     def __init__(self, host, port, container_id):
         super().__init__(host, port, container_id)
 
-        self.session = _DebugSession(self, 0)
+        self.session = _DebugSession(self)
 
     def on_open(self):
         print("CONNECTION OPENED")
@@ -37,8 +37,8 @@ class _DebugConnection(Connection):
         raise KeyboardInterrupt() # XXX
 
 class _DebugSession(Session):
-    def __init__(self, connection, channel):
-        super().__init__(connection, channel)
+    def __init__(self, connection):
+        super().__init__(connection)
 
         self.link = _DebugLink(self)
 
@@ -70,13 +70,10 @@ class _DebugLink(Link):
         message.body = [1, 2, 3]
         message.properties["a"] = 1
 
-        # XXX
-
         buff = Buffer()
         offset = emit_message(buff, 0, message)
-        octets = buff[0:offset]
 
-        self.send_transfer(payload=octets)
+        self.send_transfer(buff[0:offset])
         self.send_close()
 
     def on_close(self):

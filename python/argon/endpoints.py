@@ -29,7 +29,7 @@ class Connection(TcpConnection):
         self._opened = False
         self._closed = False
 
-        # XXX self._incoming_channel_ids = set()
+        self._channel_ids = _Sequence()
 
         self.sessions = list()
         self.sessions_by_channel = dict()
@@ -132,8 +132,8 @@ class _Endpoint:
         self.on_close()
 
 class Session(_Endpoint):
-    def __init__(self, connection, channel):
-        super().__init__(connection, channel)
+    def __init__(self, connection):
+        super().__init__(connection, connection._channel_ids.next())
 
         self._remote_channel = None
         self._next_outgoing_id = 0
@@ -208,10 +208,9 @@ class Link(_Endpoint):
         performative = TransferPerformative()
         performative.handle = self._handle
         performative.delivery_id = UnsignedInt(self._delivery_ids.next())
-        performative.message_format = UnsignedInt(0)
         performative.settled = True
 
-        tag = "delivery-{}".format(performative.delivery_id).encode("ascii") # XXX
+        tag = "delivery-{}".format(performative.delivery_id).encode("ascii")
         performative.delivery_tag = tag
 
         self.connection.send_frame(AmqpFrame(self.channel, performative, payload))
