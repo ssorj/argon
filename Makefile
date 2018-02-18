@@ -21,7 +21,12 @@ export PYTHONPATH := python
 export MICROPYPATH := python
 
 .PHONY: default
-default: endpoints-debug
+default: hello
+
+.PHONY: hello
+hello:
+	python3 -m argon.hello
+	micropython python/argon/hello.py
 
 .PHONY: big-debug
 big-debug: data-debug frames-debug endpoints-debug message-debug

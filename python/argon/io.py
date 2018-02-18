@@ -68,8 +68,6 @@ class TcpConnection:
             poller.register(sock)
 
             while True:
-                _time.sleep(0.2)
-
                 events = poller.poll(1000)
                 flags = events[0][1]
 
@@ -87,6 +85,17 @@ class TcpConnection:
 
                 if write_offset < emit_offset and flags & _select.POLLOUT:
                     write_offset = self._write_socket(output_buff, write_offset, emit_offset, sock)
+
+                assert parse_offset == read_offset, "UH OH"
+                assert emit_offset == write_offset, "ERGH"
+
+                input_buff.reset()
+                read_offset = 0
+                parse_offset = 0
+
+                output_buff.reset()
+                emit_offset = 0
+                write_offset = 0
         finally:
             sock.close()
 
@@ -120,27 +129,24 @@ class TcpConnection:
 
         assert response == protocol_header
 
-    def _read_socket(self, buff, offset, sock):
-        #print("_read_socket")
+    if _micropython:
+        def _read_socket(self, buff, offset, sock):
+            start = offset
+            buff.ensure(offset + 32)
+            return offset + sock.readinto(buff[offset:], 32)
 
-        start = offset
+        def _write_socket(self, buff, write_offset, emit_offset, sock):
+            return write_offset + sock.send(bytes(buff[write_offset:emit_offset]))
+    else:
+        def _read_socket(self, buff, offset, sock):
+            start = offset
+            buff.ensure(offset + 32)
+            return offset + sock.recv_into(buff[offset:], 32)
 
-        buff.ensure(offset + 1024)
-
-        if _micropython:
-            offset = offset + sock.readinto(buff[offset:], 1024)
-        else:
-            offset = offset + sock.recv_into(buff[offset:], 1024)
-
-        return offset
-
-    def _write_socket(self, buff, write_offset, emit_offset, sock):
-        #print("_write_socket")
-        return write_offset + sock.send(buff[write_offset:emit_offset])
+        def _write_socket(self, buff, write_offset, emit_offset, sock):
+            return write_offset + sock.send(buff[write_offset:emit_offset])
 
     def _parse_frames(self, buff, offset, limit):
-        #print("_parse_frames")
-
         while offset < limit:
             start = offset
 
@@ -162,8 +168,6 @@ class TcpConnection:
         return offset
 
     def _emit_frames(self, buff, offset):
-        #print("_emit_frames")
-
         while len(self._output_frames) > 0:
             frame = self._output_frames.pop(0)
 

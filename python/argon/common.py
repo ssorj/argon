@@ -36,39 +36,52 @@ else:
 
 class Buffer:
     def __init__(self):
-        self.octets = bytearray(256)
-        self.view = memoryview(self.octets)
+        self._octets = None
+        self._view = None
+
+        self.reset()
+
+    def reset(self):
+        self._octets = bytearray(32)
+        self._view = memoryview(self._octets)
 
     def skip(self, offset, size):
         return offset + size, offset
 
     def read(self, offset, size):
         end = offset + size
-        return end, self.view[offset:end]
+        return end, self._view[offset:end]
 
     def write(self, offset, octets):
         end = offset + len(octets)
 
         self.ensure(end)
-        self.octets[offset:end] = octets
+        self._octets[offset:end] = octets
 
         return end
 
     def unpack(self, offset, size, format_string):
         assert len(self) > offset + size
 
-        values = _struct.unpack_from(format_string, self.view, offset)
+        values = _struct.unpack_from(format_string, self._view, offset)
 
         return (offset + size,) + values
 
     def __getitem__(self, index):
-        return self.view[index]
+        return self._view[index]
 
     def __setitem__(self, index, value):
-        self.view[index] = value
+        self._view[index] = value
 
     def __len__(self):
-        return len(self.octets)
+        return len(self._octets)
+
+    def ensure(self, size):
+        if len(self._octets) < size:
+            new_size = max(size, 2 * len(self._octets))
+
+            self._octets = self._octets + bytearray([0] * new_size)
+            self._view = memoryview(self._octets)
 
     if _micropython:
         # XXX Hideous bad hack
@@ -89,31 +102,16 @@ class Buffer:
                 elif isinstance(value, UnsignedLong):
                     values[i] = int.from_bytes(value.to_bytes(8, "big"), "big")
 
-            _struct.pack_into(format_string, self.octets, offset, *values)
+            _struct.pack_into(format_string, self._octets, offset, *values)
 
             return offset + size
-
-        def ensure(self, size):
-            if len(self.octets) < size:
-                new_size = max(size, 2 * len(self.octets))
-
-                self.octets = self.octets + bytearray([0] * new_size)
-                self.view = memoryview(self.octets)
     else:
         def pack(self, offset, size, format_string, *values):
             self.ensure(offset + size)
 
-            _struct.pack_into(format_string, self.octets, offset, *values)
+            _struct.pack_into(format_string, self._octets, offset, *values)
 
             return offset + size
-
-        def ensure(self, size):
-            if len(self.octets) < size:
-                new_size = max(size, 2 * len(self.octets))
-
-                self.view.release()
-                self.octets.extend([0] * max(size, 2 * len(self.octets)))
-                self.view = memoryview(self.octets)
 
 def _uuid_bytes():
     _random.seed(round(_time.time() * 1000))

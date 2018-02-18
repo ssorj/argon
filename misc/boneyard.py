@@ -1,84 +1,116 @@
-    class _Integer:
-        def __init__(self, value):
-            self._value = value
+import socket, sys
 
-        def __hash__(self):
-            return hash(self._value)
+HOST = 'localhost'        # The remote host
+PORT = 50007              # The same port as used by the server
 
-        def __complex__(self):
-            return complex(self._value)
+read_buff = bytearray(16)
+read_view = memoryview(read_buff)
 
-        def __int__(self):
-            return int(self._value)
+size = 0
 
-        def __float__(self):
-            return float(self._value)
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.connect((HOST, PORT))
 
-        def __round__(self, n=None):
-            return round(self._value, n)
+while True:
+    nbytes = s.recv_into(read_view)
 
-        def __index__(self):
-            return self._value
-        
-        def __lt__(self, other):
-            return self._value < other
+    if not nbytes:
+        break
 
-        def __le__(self, other):
-            return self._value <= other
+    size += nbytes
+    read_view = read_view[nbytes:]
 
-        def __eq__(self, other):
-            return self._value == other
+    if not len(read_view):
+        print "filled a chunk", read_buff
+        read_view = memoryview(read_buff)
 
-        def __gt__(self, other):
-            return self._value < other
+print("End of data", read_buff[:len(read_view)], size)
 
-        def __ge__(self, other):
-            return self._value >= other
+s.close()
 
-        def __add__(self, other):
-            return self._value + other
+---
 
-        def __sub__(self, other):
-            return self._value - other
+class _Integer:
+    def __init__(self, value):
+        self._value = value
 
-        def __mul__(self, other):
-            return self._value * other
+    def __hash__(self):
+        return hash(self._value)
 
-        def __truediv__(self, other):
-            return self._value / other
+    def __complex__(self):
+        return complex(self._value)
 
-        def __floordiv__(self, other):
-            return self._value // other
+    def __int__(self):
+        return int(self._value)
 
-        def __mod__(self, other):
-            return self._value % other
+    def __float__(self):
+        return float(self._value)
 
-        def __divmod__(self, other):
-            return divmod(self._value % other)
+    def __round__(self, n=None):
+        return round(self._value, n)
 
-        def __pow__(self, other, modulo=None):
-            return pow(self._value, other, modulo)
+    def __index__(self):
+        return self._value
 
-        def __lshift__(self, other):
-            return self._value << other
+    def __lt__(self, other):
+        return self._value < other
 
-        def __rshift__(self, other):
-            return self._value >> other
+    def __le__(self, other):
+        return self._value <= other
 
-        def __and__(self, other):
-            return self._value & other
+    def __eq__(self, other):
+        return self._value == other
 
-        def __xor__(self, other):
-            return self._value ^ other
+    def __gt__(self, other):
+        return self._value < other
 
-        def __or__(self, other):
-            return self._value | other
+    def __ge__(self, other):
+        return self._value >= other
 
-        def __neg__(self):
-            return -self._value
+    def __add__(self, other):
+        return self._value + other
 
-        def __pos__(self):
-            return +self._value
+    def __sub__(self, other):
+        return self._value - other
 
-        def __abs__(self):
-            return abs(self._value)
+    def __mul__(self, other):
+        return self._value * other
+
+    def __truediv__(self, other):
+        return self._value / other
+
+    def __floordiv__(self, other):
+        return self._value // other
+
+    def __mod__(self, other):
+        return self._value % other
+
+    def __divmod__(self, other):
+        return divmod(self._value % other)
+
+    def __pow__(self, other, modulo=None):
+        return pow(self._value, other, modulo)
+
+    def __lshift__(self, other):
+        return self._value << other
+
+    def __rshift__(self, other):
+        return self._value >> other
+
+    def __and__(self, other):
+        return self._value & other
+
+    def __xor__(self, other):
+        return self._value ^ other
+
+    def __or__(self, other):
+        return self._value | other
+
+    def __neg__(self):
+        return -self._value
+
+    def __pos__(self):
+        return +self._value
+
+    def __abs__(self):
+        return abs(self._value)
