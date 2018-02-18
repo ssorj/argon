@@ -86,16 +86,15 @@ class TcpConnection:
                 if write_offset < emit_offset and flags & _select.POLLOUT:
                     write_offset = self._write_socket(output_buff, write_offset, emit_offset, sock)
 
-                assert parse_offset == read_offset, "UH OH"
-                assert emit_offset == write_offset, "ERGH"
+                if parse_offset == read_offset:
+                    input_buff.reset()
+                    read_offset = 0
+                    parse_offset = 0
 
-                input_buff.reset()
-                read_offset = 0
-                parse_offset = 0
-
-                output_buff.reset()
-                emit_offset = 0
-                write_offset = 0
+                if emit_offset == write_offset:
+                    output_buff.reset()
+                    emit_offset = 0
+                    write_offset = 0
         finally:
             sock.close()
 
