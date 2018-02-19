@@ -21,12 +21,12 @@ export PYTHONPATH := python
 export MICROPYPATH := python
 
 .PHONY: default
-default: hello
+default: send
 
-.PHONY: hello
-hello:
-	python3 -m argon.hello
-	micropython python/argon/hello.py
+.PHONY: send
+send:
+	python3 -m argon.main send amqp.zone 5672 q0 abc123
+	micropython python/argon/main.py send amqp.zone 5672 q0 abc123
 
 .PHONY: big-debug
 big-debug: data-debug frames-debug endpoints-debug message-debug

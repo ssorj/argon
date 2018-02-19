@@ -36,13 +36,7 @@ else:
 
 class Buffer:
     def __init__(self):
-        self._octets = None
-        self._view = None
-
-        self.reset()
-
-    def reset(self):
-        self._octets = bytearray(32)
+        self._octets = bytearray(64)
         self._view = memoryview(self._octets)
 
     def skip(self, offset, size):

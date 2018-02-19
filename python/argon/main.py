@@ -22,11 +22,13 @@ import sys as _sys
 from argon.endpoints import *
 from argon.message import *
 
-class _HelloConnection(Connection):
-    def __init__(self, host, port, container_id=None):
-        super().__init__(host, port, container_id)
+class _MainConnection(Connection):
+    def __init__(self, host, port, address, message):
+        super().__init__(host, port)
 
-        self.session = _HelloSession(self)
+        self.address = address
+        self.message = message
+        self.session = _MainSession(self)
 
     def on_open(self):
         self.session.send_open()
@@ -34,31 +36,22 @@ class _HelloConnection(Connection):
     def on_close(self):
         raise KeyboardInterrupt() # XXX
 
-class _HelloSession(Session):
+class _MainSession(Session):
     def __init__(self, connection):
         super().__init__(connection)
 
-        self.sender = _HelloSender(self, "hello")
+        self.sender = _MainSender(self, self.connection.address)
 
     def on_open(self):
-        target = Target()
-        target.address = "hello"
-
         self.sender.send_open()
 
     def on_close(self):
         self.connection.send_close()
 
-class _HelloSender(Sender):
+class _MainSender(Sender):
     def on_flow(self):
-        message = Message()
-        message.id = 123
-        message.durable = True
-        message.body = [1, 2, 3]
-        message.properties["a"] = 1
-
         buff = Buffer()
-        offset = emit_message(buff, 0, message)
+        offset = emit_message(buff, 0, self.session.connection.message)
 
         self.send_transfer(buff[0:offset])
         self.send_close()
@@ -66,24 +59,21 @@ class _HelloSender(Sender):
     def on_close(self):
         self.session.send_close()
 
+def send(host, port, address, message):
+    conn = _MainConnection(host, port, address, message)
+    conn.run()
+
 def main():
-    # import tracemalloc
-    # tracemalloc.start()
+    operation, host, port, address, message_body = _sys.argv[1:]
+    port = int(port)
 
-    conn = _HelloConnection("amqp.zone", 5672)
+    if operation == "send":
+        message = Message()
+        message.body = message_body
 
-    try:
-        conn.run()
-    except KeyboardInterrupt:
-        pass
-
-    # snapshot = tracemalloc.take_snapshot()
-    # top_stats = snapshot.statistics('lineno')
-
-    # print("[Top 20]")
-
-    # for stat in top_stats[:20]:
-    #     print(stat)
+        send(host, port, address, message)
+    else:
+        raise Exception()
 
 if __name__ == "__main__":
     try:

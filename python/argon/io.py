@@ -87,12 +87,10 @@ class TcpConnection:
                     write_offset = self._write_socket(output_buff, write_offset, emit_offset, sock)
 
                 if parse_offset == read_offset:
-                    input_buff.reset()
                     read_offset = 0
                     parse_offset = 0
 
                 if emit_offset == write_offset:
-                    output_buff.reset()
                     emit_offset = 0
                     write_offset = 0
         finally:
@@ -131,16 +129,16 @@ class TcpConnection:
     if _micropython:
         def _read_socket(self, buff, offset, sock):
             start = offset
-            buff.ensure(offset + 32)
-            return offset + sock.readinto(buff[offset:], 32)
+            buff.ensure(offset + 64)
+            return offset + sock.readinto(buff[offset:], 64)
 
         def _write_socket(self, buff, write_offset, emit_offset, sock):
             return write_offset + sock.send(bytes(buff[write_offset:emit_offset]))
     else:
         def _read_socket(self, buff, offset, sock):
             start = offset
-            buff.ensure(offset + 32)
-            return offset + sock.recv_into(buff[offset:], 32)
+            buff.ensure(offset + 64)
+            return offset + sock.recv_into(buff[offset:], 64)
 
         def _write_socket(self, buff, write_offset, emit_offset, sock):
             return write_offset + sock.send(buff[write_offset:emit_offset])
