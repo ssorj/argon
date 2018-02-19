@@ -28,6 +28,7 @@ class _MainConnection(Connection):
 
         self.address = address
         self.message = message
+
         self.session = _MainSession(self)
 
     def on_open(self):
@@ -50,10 +51,7 @@ class _MainSession(Session):
 
 class _MainSender(Sender):
     def on_flow(self):
-        buff = Buffer()
-        offset = emit_message(buff, 0, self.session.connection.message)
-
-        self.send_transfer(buff[0:offset])
+        self.send_transfer(self.session.connection.message)
         self.send_close()
 
     def on_close(self):

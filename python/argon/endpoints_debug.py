@@ -70,10 +70,7 @@ class _DebugSender(Sender):
         message.body = [1, 2, 3]
         message.properties["a"] = 1
 
-        buff = Buffer()
-        offset = emit_message(buff, 0, message)
-
-        self.send_transfer(buff[0:offset])
+        self.send_transfer(message)
         self.send_close()
 
     def on_close(self):

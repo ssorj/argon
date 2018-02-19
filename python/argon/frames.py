@@ -17,8 +17,10 @@
 # under the License.
 #
 
+from argon.common import _shorten
 from argon.data import *
 from argon.data import _data_hex, _field, _hex
+from argon.message import emit_message
 
 OPEN_DESCRIPTOR = UnsignedLong(0x00000010)
 BEGIN_DESCRIPTOR = UnsignedLong(0x00000011)
@@ -43,35 +45,34 @@ _performative_names = {
 }
 
 class AmqpFrame:
-    __slots__ = "channel", "performative", "payload"
+    __slots__ = "channel", "performative", "payload", "message"
 
-    def __init__(self, channel, performative, payload=None):
+    def __init__(self, channel, performative, payload=None, message=None):
         self.channel = channel
         self.performative = performative
         self.payload = payload
-
-        # XXX Drop this
-        if self.payload is None:
-            self.payload = b""
+        self.message = message
 
     def __hash__(self):
-        return hash(self.channel), hash(self.performative), hash(self.payload)
+        return hash(self.channel), hash(self.performative), hash(self.payload), hash(self.message)
 
     def __eq__(self, other):
-        return (self.channel, self.performative, self.payload) == \
-            (other.channel, other.performative, other.payload)
+        return (self.channel, self.performative, self.payload, self.message) == \
+            (other.channel, other.performative, other.payload, other.message)
 
     def __repr__(self):
         name = _performative_names[self.performative._descriptor]
-        args = name, self.channel, self.performative, len(self.payload)
-        return "{}({}, {}, {})".format(*args)
+        args = name, self.channel, self.performative, _shorten(self.payload, 16), self.message
+        return "{}({}, {}, {}, {})".format(*args)
 
     def _emit(self, buff, offset):
         offset, size_offset = buff.skip(offset, 4)
 
         offset = buff.pack(offset, 4, "!BBH", 2, 0, self.channel)
         offset = emit_data(buff, offset, self.performative)
-        offset = buff.write(offset, self.payload)
+
+        if self.message is not None:
+            offset = emit_message(buff, offset, self.message)
 
         size = offset - size_offset
         buff.pack(size_offset, 4, "!I", size)

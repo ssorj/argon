@@ -31,7 +31,7 @@ class TcpConnection:
 
         self.debug = True
 
-        self._output_frames = list()
+        self._output_queue = list()
 
     def _log_send(self, octets, obj):
         if self.debug:
@@ -107,8 +107,8 @@ class TcpConnection:
     def on_stop(self):
         pass
 
-    def send_frame(self, frame):
-        self._output_frames.append(frame)
+    def enqueue_output(self, frame):
+        self._output_queue.append(frame)
 
     def _shake_hands(self, sock):
         protocol_header = _struct.pack("!4sBBBB", b"AMQP", 0, 1, 0, 0)
@@ -165,8 +165,8 @@ class TcpConnection:
         return offset
 
     def _emit_frames(self, buff, offset):
-        while len(self._output_frames) > 0:
-            frame = self._output_frames.pop(0)
+        while len(self._output_queue) > 0:
+            frame = self._output_queue.pop(0)
 
             start = offset
             offset = emit_frame(buff, offset, frame)

@@ -123,4 +123,7 @@ def _hex(data):
     return "".join(["{:02x}".format(x) for x in data])
 
 def _shorten(string, max_=20):
+    if string is None:
+        return string
+
     return string[:min(max_, len(string))]
