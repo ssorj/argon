@@ -22,8 +22,8 @@ import sys as _sys
 from argon.endpoints import *
 
 class _DebugConnection(Connection):
-    def __init__(self, host, port, container_id=None):
-        super().__init__(host, port, container_id)
+    def __init__(self):
+        super().__init__()
 
         self.session = _DebugSession(self)
 
@@ -79,8 +79,12 @@ class _DebugSender(Sender):
         self.session.send_close()
 
 def _main():
-    conn = _DebugConnection("127.0.0.1", 5672)
-    conn.run()
+    transport = TcpTransport("127.0.0.1", 5672)
+
+    conn = _DebugConnection()
+    conn.bind(transport)
+
+    transport.run()
 
 if __name__ == "__main__":
     try:

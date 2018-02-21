@@ -21,9 +21,9 @@ from argon.common import _hex, _uuid_bytes
 from argon.frames import _field
 from argon.transport import *
 
-class Connection(TcpTransport):
-    def __init__(self, host, port, container_id=None):
-        super().__init__(host, port)
+class Connection:
+    def __init__(self, container_id=None):
+        self.transport = None
 
         if container_id is None:
             container_id = _hex(_uuid_bytes())
@@ -43,10 +43,16 @@ class Connection(TcpTransport):
     def container_id(self):
         return self._open.container_id
 
-    def on_start(self):
+    def bind(self, transport):
+        self.transport = transport
+        self.transport.on_start = self.on_transport_start
+        self.transport.on_frame = self.on_transport_frame
+        self.transport.on_stop = self.on_transport_stop
+
+    def on_transport_start(self):
         self.send_open()
 
-    def on_frame(self, frame):
+    def on_transport_frame(self, frame):
         assert isinstance(frame, AmqpFrame)
 
         descriptor = frame.performative._descriptor
@@ -101,15 +107,18 @@ class Connection(TcpTransport):
 
         raise Exception()
 
+    def on_transport_stop(self, error):
+        raise Exception(error) # XXX
+
     def send_open(self):
-        self.enqueue_output(AmqpFrame(0, self._open))
+        self.transport.enqueue_output(AmqpFrame(0, self._open))
 
     def on_open(self):
         pass
 
     def send_close(self, error=None):
         performative = ClosePerformative()
-        self.enqueue_output(AmqpFrame(0, performative))
+        self.transport.enqueue_output(AmqpFrame(0, performative))
 
     def on_close(self):
         pass
@@ -121,6 +130,10 @@ class _Endpoint:
 
         self._opened = False
         self._closed = False
+
+    @property
+    def transport(self):
+        return self.connection.transport
 
     def send_open(self):
         raise NotImplementedError()
@@ -156,7 +169,7 @@ class Session(_Endpoint):
         self.connection.sessions_by_channel[self.channel] = self
 
     def send_open(self):
-        self.connection.enqueue_output(AmqpFrame(self.channel, self._begin))
+        self.transport.enqueue_output(AmqpFrame(self.channel, self._begin))
 
     def _receive_open(self, frame):
         self._remote_channel = frame.performative.remote_channel
@@ -164,7 +177,7 @@ class Session(_Endpoint):
 
     def send_close(self, error=None):
         performative = EndPerformative()
-        self.connection.enqueue_output(AmqpFrame(self.channel, performative))
+        self.transport.enqueue_output(AmqpFrame(self.channel, performative))
 
 class _Link(_Endpoint):
     def __init__(self, session, role, name=None):
@@ -192,7 +205,7 @@ class _Link(_Endpoint):
         self.session.links_by_handle[self._attach.handle] = self
 
     def send_open(self):
-        self.connection.enqueue_output(AmqpFrame(self.channel, self._attach))
+        self.transport.enqueue_output(AmqpFrame(self.channel, self._attach))
 
     def _receive_open(self, frame):
         self.on_open()
@@ -213,14 +226,14 @@ class _Link(_Endpoint):
         tag = "delivery-{}".format(performative.delivery_id).encode("ascii")
         performative.delivery_tag = tag
 
-        self.connection.enqueue_output(AmqpFrame(self.channel, performative, None, message))
+        self.transport.enqueue_output(AmqpFrame(self.channel, performative, None, message))
 
     def send_close(self, error=None):
         performative = DetachPerformative()
         performative.handle = self._attach.handle
         performative.closed = True
 
-        self.connection.enqueue_output(AmqpFrame(self.channel, performative))
+        self.transport.enqueue_output(AmqpFrame(self.channel, performative))
 
 class Sender(_Link):
     def __init__(self, session, address, name=None):

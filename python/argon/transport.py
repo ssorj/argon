@@ -100,7 +100,7 @@ class SocketTransport:
     def on_frame(self, frame):
         pass
 
-    def on_stop(self):
+    def on_stop(self, error):
         pass
 
     def enqueue_output(self, frame):

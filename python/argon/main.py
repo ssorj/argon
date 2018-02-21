@@ -23,8 +23,8 @@ from argon.endpoints import *
 from argon.message import *
 
 class _MainConnection(Connection):
-    def __init__(self, host, port, address, message):
-        super().__init__(host, port)
+    def __init__(self, address, message):
+        super().__init__()
 
         self.address = address
         self.message = message
@@ -58,8 +58,12 @@ class _MainSender(Sender):
         self.session.send_close()
 
 def send(host, port, address, message):
-    conn = _MainConnection(host, port, address, message)
-    conn.run()
+    transport = TcpTransport(host, port)
+
+    conn = _MainConnection(address, message)
+    conn.bind(transport)
+
+    transport.run()
 
 def main():
     operation, host, port, address, message_body = _sys.argv[1:]
