@@ -24,11 +24,10 @@ from argon.common import _micropython, _time, _select, _socket, _struct
 from argon.frames import *
 from argon.frames import _frame_hex, _hex
 
-class TcpConnection:
-    def __init__(self, host, port):
-        self.host = host
-        self.port = port
-
+class SocketTransport:
+    def __init__(self, socket, address):
+        self.socket = socket
+        self.address = address
         self.debug = True
 
         self._output_queue = list()
@@ -44,9 +43,6 @@ class TcpConnection:
             print(" ", obj)
 
     def run(self):
-        address = _socket.getaddrinfo(self.host, self.port)[0][-1]
-        sock = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
-
         input_buff = Buffer()
         read_offset = 0
         parse_offset = 0
@@ -58,14 +54,14 @@ class TcpConnection:
         self.on_start()
 
         try:
-            sock.connect(address)
+            self.socket.connect(self.address)
 
-            self._shake_hands(sock)
+            self._shake_hands()
 
-            sock.setblocking(False)
+            self.socket.setblocking(False)
 
             poller = _select.poll()
-            poller.register(sock)
+            poller.register(self.socket)
 
             while True:
                 events = poller.poll(1000)
@@ -78,13 +74,13 @@ class TcpConnection:
                     raise Exception("POLLHUP!")
 
                 if flags & _select.POLLIN:
-                    read_offset = self._read_socket(input_buff, read_offset, sock)
+                    read_offset = self._read_socket(input_buff, read_offset)
 
                 parse_offset = self._parse_frames(input_buff, parse_offset, read_offset)
                 emit_offset = self._emit_frames(output_buff, emit_offset)
 
                 if write_offset < emit_offset and flags & _select.POLLOUT:
-                    write_offset = self._write_socket(output_buff, write_offset, emit_offset, sock)
+                    write_offset = self._write_socket(output_buff, write_offset, emit_offset)
 
                 if parse_offset == read_offset:
                     read_offset = 0
@@ -94,7 +90,7 @@ class TcpConnection:
                     emit_offset = 0
                     write_offset = 0
         finally:
-            sock.close()
+            self.socket.close()
 
         self.on_stop()
 
@@ -110,38 +106,38 @@ class TcpConnection:
     def enqueue_output(self, frame):
         self._output_queue.append(frame)
 
-    def _shake_hands(self, sock):
+    def _shake_hands(self):
         protocol_header = _struct.pack("!4sBBBB", b"AMQP", 0, 1, 0, 0)
 
         self._log_send(_hex(protocol_header), str(protocol_header))
 
         if _micropython:
-            sock.write(protocol_header)
-            response = sock.read(8)
+            self.socket.write(protocol_header)
+            response = self.socket.read(8)
         else:
-            sock.sendall(protocol_header)
-            response = sock.recv(8, _socket.MSG_WAITALL)
+            self.socket.sendall(protocol_header)
+            response = self.socket.recv(8, _socket.MSG_WAITALL)
 
         self._log_receive(_hex(response), str(response))
 
         assert response == protocol_header
 
     if _micropython:
-        def _read_socket(self, buff, offset, sock):
+        def _read_socket(self, buff, offset):
             start = offset
             buff.ensure(offset + 64)
-            return offset + sock.readinto(buff[offset:], 64)
+            return offset + self.socket.readinto(buff[offset:], 64)
 
-        def _write_socket(self, buff, write_offset, emit_offset, sock):
-            return write_offset + sock.send(bytes(buff[write_offset:emit_offset]))
+        def _write_socket(self, buff, write_offset, emit_offset):
+            return write_offset + self.socket.send(bytes(buff[write_offset:emit_offset]))
     else:
-        def _read_socket(self, buff, offset, sock):
+        def _read_socket(self, buff, offset):
             start = offset
             buff.ensure(offset + 64)
-            return offset + sock.recv_into(buff[offset:], 64)
+            return offset + self.socket.recv_into(buff[offset:], 64)
 
-        def _write_socket(self, buff, write_offset, emit_offset, sock):
-            return write_offset + sock.send(buff[write_offset:emit_offset])
+        def _write_socket(self, buff, write_offset, emit_offset):
+            return write_offset + self.socket.send(buff[write_offset:emit_offset])
 
     def _parse_frames(self, buff, offset, limit):
         while offset < limit:
@@ -174,3 +170,13 @@ class TcpConnection:
             self._log_send(_frame_hex(buff[start:offset]), frame)
 
         return offset
+
+class TcpTransport(SocketTransport):
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+
+        socket = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+        address = _socket.getaddrinfo(self.host, self.port)[0][-1]
+
+        super().__init__(socket, address)

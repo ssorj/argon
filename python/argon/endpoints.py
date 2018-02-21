@@ -18,10 +18,10 @@
 #
 
 from argon.common import _hex, _uuid_bytes
-from argon.io import *
 from argon.frames import _field
+from argon.transport import *
 
-class Connection(TcpConnection):
+class Connection(TcpTransport):
     def __init__(self, host, port, container_id=None):
         super().__init__(host, port)
 

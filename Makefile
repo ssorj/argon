@@ -40,8 +40,8 @@ data-test: data-test-cpython data-test-micropython
 .PHONY: frames-debug
 frames-debug: frames-debug-cpython frames-debug-micropython
 
-.PHONY: io-debug
-io-debug: io-debug-cpython io-debug-micropython
+.PHONY: transpot-debug
+io-debug: transport-debug-cpython transport-debug-micropython
 
 .PHONY: endpoints-debug
 endpoints-debug: endpoints-debug-cpython endpoints-debug-micropython
