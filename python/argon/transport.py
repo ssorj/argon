@@ -34,22 +34,19 @@ class SocketTransport:
         self._output_buffer = Buffer()
         self._emit_offset = 0
 
-        self._output_queue = list()
-
-    def _log_send(self, octets, obj):
+    def _log_send(self, octets, frame, message=None):
         if self.debug:
             print("S", octets)
-            print(" ", obj)
+            print(" ", frame, message)
 
-    def _log_receive(self, octets, obj):
+    def _log_receive(self, octets, frame):
         if self.debug:
             print("R", octets)
-            print(" ", obj)
+            print(" ", frame)
 
     def run(self):
         read_offset = 0
         parse_offset = 0
-
         write_offset = 0
 
         self.on_start()
@@ -78,7 +75,6 @@ class SocketTransport:
                     read_offset = self._read_socket(read_offset)
 
                 parse_offset = self._parse_frames(parse_offset, read_offset)
-                # XXX emit_offset = self._emit_frames(emit_offset)
 
                 if write_offset < self._emit_offset and flags & _select.POLLOUT:
                     write_offset = self._write_socket(write_offset, self._emit_offset)
@@ -104,16 +100,23 @@ class SocketTransport:
     def on_stop(self, error):
         pass
 
-    def emit_frame(self, frame):
-        start = self._emit_offset
-        self._emit_offset = emit_frame(self._output_buffer, self._emit_offset, frame)
+    def emit_amqp_frame(self, channel, performative, payload=None, message=None):
+        offset = self._emit_offset
+        start = offset
+        offset = emit_amqp_frame(self._output_buffer, offset, channel, performative, payload, message)
 
-        self._log_send(_frame_hex(self._output_buffer[start:self._emit_offset]), frame)
+        if self.debug:
+            frame = AmqpFrame(channel, performative, payload)
+            self._log_send(_frame_hex(self._output_buffer[start:offset]), frame, message)
+
+        self._emit_offset = offset
 
     def _shake_hands(self):
         protocol_header = _struct.pack("!4sBBBB", b"AMQP", 0, 1, 0, 0)
 
-        self._log_send(_hex(protocol_header), str(protocol_header))
+        if self.debug:
+            print("S", _hex(protocol_header))
+            print(" ", str(protocol_header))
 
         if _micropython:
             self.socket.write(protocol_header)
@@ -122,7 +125,9 @@ class SocketTransport:
             self.socket.sendall(protocol_header)
             response = self.socket.recv(8, _socket.MSG_WAITALL)
 
-        self._log_receive(_hex(response), str(response))
+        if self.debug:
+            print("R", _hex(response))
+            print(" ", str(response))
 
         assert response == protocol_header
 
@@ -163,17 +168,6 @@ class SocketTransport:
             self._log_receive(_frame_hex(self._input_buffer[start:offset]), frame)
 
             self.on_frame(frame)
-
-        return offset
-
-    def _emit_frames(self, offset):
-        while len(self._output_queue) > 0:
-            frame = self._output_queue.pop(0)
-
-            start = offset
-            offset = emit_frame(self._output_buffer, offset, frame)
-
-            self._log_send(_frame_hex(self._output_buffer[start:offset]), frame)
 
         return offset
 

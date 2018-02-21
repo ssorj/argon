@@ -45,39 +45,24 @@ _performative_names = {
 }
 
 class AmqpFrame:
-    __slots__ = "channel", "performative", "payload", "message"
+    __slots__ = "channel", "performative", "payload"
 
-    def __init__(self, channel, performative, payload=None, message=None):
+    def __init__(self, channel, performative, payload=None):
         self.channel = channel
         self.performative = performative
         self.payload = payload
-        self.message = message
 
     def __hash__(self):
-        return hash(self.channel), hash(self.performative), hash(self.payload), hash(self.message)
+        return hash(self.channel), hash(self.performative), hash(self.payload)
 
     def __eq__(self, other):
-        return (self.channel, self.performative, self.payload, self.message) == \
-            (other.channel, other.performative, other.payload, other.message)
+        return (self.channel, self.performative, self.payload) == \
+            (other.channel, other.performative, other.payload)
 
     def __repr__(self):
         name = _performative_names[self.performative._descriptor]
-        args = name, self.channel, self.performative, _shorten(self.payload, 16), self.message
-        return "{}({}, {}, {}, {})".format(*args)
-
-    def _emit(self, buff, offset):
-        offset, size_offset = buff.skip(offset, 4)
-
-        offset = buff.pack(offset, 4, "!BBH", 2, 0, self.channel)
-        offset = emit_data(buff, offset, self.performative)
-
-        if self.message is not None:
-            offset = emit_message(buff, offset, self.message)
-
-        size = offset - size_offset
-        buff.pack(size_offset, 4, "!I", size)
-
-        return offset
+        args = name, self.channel, self.performative, _shorten(self.payload, 16)
+        return "{}({}, {}, {})".format(*args)
 
 class OpenPerformative(DescribedValue):
     __slots__ = ()
@@ -217,8 +202,21 @@ register_value_class(DETACH_DESCRIPTOR, DetachPerformative)
 register_value_class(END_DESCRIPTOR, EndPerformative)
 register_value_class(CLOSE_DESCRIPTOR, ClosePerformative)
 
-def emit_frame(buff, offset, frame):
-    return frame._emit(buff, offset)
+def emit_amqp_frame(buff, offset, channel, performative, payload=None, message=None):
+    offset, size_offset = buff.skip(offset, 4)
+
+    offset = buff.pack(offset, 4, "!BBH", 2, 0, channel)
+    offset = emit_data(buff, offset, performative)
+
+    if message is not None:
+        offset = emit_message(buff, offset, message)
+    elif payload is not None:
+        offset = buff.write(offset, payload)
+
+    size = offset - size_offset
+    buff.pack(size_offset, 4, "!I", size)
+
+    return offset
 
 def parse_frame(buff, offset):
     start = offset
@@ -233,9 +231,13 @@ def parse_frame_header(buff, offset):
 
 def parse_frame_body(buff, offset, end, channel):
     offset, performative = parse_data(buff, offset)
-    offset, payload = buff.read(offset, end - offset)
 
     assert isinstance(performative, DescribedValue)
+
+    if end == offset:
+        return offset, AmqpFrame(channel, performative)
+
+    offset, payload = buff.read(offset, end - offset)
 
     return offset, AmqpFrame(channel, performative, payload)
 

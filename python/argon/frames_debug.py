@@ -48,7 +48,7 @@ def _main():
             print("Emitting {}".format(frame))
 
         start = offset
-        offset = emit_frame(buff, offset, frame)
+        offset = emit_amqp_frame(buff, offset, frame.channel, frame.performative, frame.payload)
 
         octets = _frame_hex(buff[start:offset])
         output_octets.append(octets)
