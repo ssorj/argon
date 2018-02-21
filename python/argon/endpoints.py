@@ -111,14 +111,14 @@ class Connection:
         raise Exception(error) # XXX
 
     def send_open(self):
-        self.transport.enqueue_output(AmqpFrame(0, self._open))
+        self.transport.emit_frame(AmqpFrame(0, self._open))
 
     def on_open(self):
         pass
 
     def send_close(self, error=None):
         performative = ClosePerformative()
-        self.transport.enqueue_output(AmqpFrame(0, performative))
+        self.transport.emit_frame(AmqpFrame(0, performative))
 
     def on_close(self):
         pass
@@ -169,7 +169,7 @@ class Session(_Endpoint):
         self.connection.sessions_by_channel[self.channel] = self
 
     def send_open(self):
-        self.transport.enqueue_output(AmqpFrame(self.channel, self._begin))
+        self.transport.emit_frame(AmqpFrame(self.channel, self._begin))
 
     def _receive_open(self, frame):
         self._remote_channel = frame.performative.remote_channel
@@ -177,7 +177,7 @@ class Session(_Endpoint):
 
     def send_close(self, error=None):
         performative = EndPerformative()
-        self.transport.enqueue_output(AmqpFrame(self.channel, performative))
+        self.transport.emit_frame(AmqpFrame(self.channel, performative))
 
 class _Link(_Endpoint):
     def __init__(self, session, role, name=None):
@@ -205,7 +205,7 @@ class _Link(_Endpoint):
         self.session.links_by_handle[self._attach.handle] = self
 
     def send_open(self):
-        self.transport.enqueue_output(AmqpFrame(self.channel, self._attach))
+        self.transport.emit_frame(AmqpFrame(self.channel, self._attach))
 
     def _receive_open(self, frame):
         self.on_open()
@@ -226,14 +226,14 @@ class _Link(_Endpoint):
         tag = "delivery-{}".format(performative.delivery_id).encode("ascii")
         performative.delivery_tag = tag
 
-        self.transport.enqueue_output(AmqpFrame(self.channel, performative, None, message))
+        self.transport.emit_frame(AmqpFrame(self.channel, performative, None, message))
 
     def send_close(self, error=None):
         performative = DetachPerformative()
         performative.handle = self._attach.handle
         performative.closed = True
 
-        self.transport.enqueue_output(AmqpFrame(self.channel, performative))
+        self.transport.emit_frame(AmqpFrame(self.channel, performative))
 
 class Sender(_Link):
     def __init__(self, session, address, name=None):

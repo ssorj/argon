@@ -30,6 +30,10 @@ class SocketTransport:
         self.address = address
         self.debug = True
 
+        self._input_buffer = Buffer()
+        self._output_buffer = Buffer()
+        self._emit_offset = 0
+
         self._output_queue = list()
 
     def _log_send(self, octets, obj):
@@ -43,12 +47,9 @@ class SocketTransport:
             print(" ", obj)
 
     def run(self):
-        input_buff = Buffer()
         read_offset = 0
         parse_offset = 0
 
-        output_buff = Buffer()
-        emit_offset = 0
         write_offset = 0
 
         self.on_start()
@@ -74,20 +75,20 @@ class SocketTransport:
                     raise Exception("POLLHUP!")
 
                 if flags & _select.POLLIN:
-                    read_offset = self._read_socket(input_buff, read_offset)
+                    read_offset = self._read_socket(read_offset)
 
-                parse_offset = self._parse_frames(input_buff, parse_offset, read_offset)
-                emit_offset = self._emit_frames(output_buff, emit_offset)
+                parse_offset = self._parse_frames(parse_offset, read_offset)
+                # XXX emit_offset = self._emit_frames(emit_offset)
 
-                if write_offset < emit_offset and flags & _select.POLLOUT:
-                    write_offset = self._write_socket(output_buff, write_offset, emit_offset)
+                if write_offset < self._emit_offset and flags & _select.POLLOUT:
+                    write_offset = self._write_socket(write_offset, self._emit_offset)
 
                 if parse_offset == read_offset:
                     read_offset = 0
                     parse_offset = 0
 
-                if emit_offset == write_offset:
-                    emit_offset = 0
+                if self._emit_offset == write_offset:
+                    self._emit_offset = 0
                     write_offset = 0
         finally:
             self.socket.close()
@@ -103,8 +104,11 @@ class SocketTransport:
     def on_stop(self, error):
         pass
 
-    def enqueue_output(self, frame):
-        self._output_queue.append(frame)
+    def emit_frame(self, frame):
+        start = self._emit_offset
+        self._emit_offset = emit_frame(self._output_buffer, self._emit_offset, frame)
+
+        self._log_send(_frame_hex(self._output_buffer[start:self._emit_offset]), frame)
 
     def _shake_hands(self):
         protocol_header = _struct.pack("!4sBBBB", b"AMQP", 0, 1, 0, 0)
@@ -123,51 +127,53 @@ class SocketTransport:
         assert response == protocol_header
 
     if _micropython:
-        def _read_socket(self, buff, offset):
+        def _read_socket(self, offset):
             start = offset
-            buff.ensure(offset + 64)
-            return offset + self.socket.readinto(buff[offset:], 64)
+            self._input_buffer.ensure(offset + 64)
+            return offset + self.socket.readinto(self._input_buffer[offset:], 64)
 
-        def _write_socket(self, buff, write_offset, emit_offset):
-            return write_offset + self.socket.send(bytes(buff[write_offset:emit_offset]))
+        def _write_socket(self, write_offset, emit_offset):
+            octets = bytes(self._output_buffer[write_offset:emit_offset])
+            return write_offset + self.socket.send(octets)
     else:
-        def _read_socket(self, buff, offset):
+        def _read_socket(self, offset):
             start = offset
-            buff.ensure(offset + 64)
-            return offset + self.socket.recv_into(buff[offset:], 64)
+            self._input_buffer.ensure(offset + 64)
+            return offset + self.socket.recv_into(self._input_buffer[offset:], 64)
 
-        def _write_socket(self, buff, write_offset, emit_offset):
-            return write_offset + self.socket.send(buff[write_offset:emit_offset])
+        def _write_socket(self, write_offset, emit_offset):
+            octets = self._output_buffer[write_offset:emit_offset]
+            return write_offset + self.socket.send(octets)
 
-    def _parse_frames(self, buff, offset, limit):
+    def _parse_frames(self, offset, limit):
         while offset < limit:
             start = offset
 
             if offset + 8 > limit:
                 return start
 
-            offset, size, channel = parse_frame_header(buff, offset)
+            offset, size, channel = parse_frame_header(self._input_buffer, offset)
             end = start + size
 
             if end > limit:
                 return start
 
-            offset, frame = parse_frame_body(buff, offset, end, channel)
+            offset, frame = parse_frame_body(self._input_buffer, offset, end, channel)
 
-            self._log_receive(_frame_hex(buff[start:offset]), frame)
+            self._log_receive(_frame_hex(self._input_buffer[start:offset]), frame)
 
             self.on_frame(frame)
 
         return offset
 
-    def _emit_frames(self, buff, offset):
+    def _emit_frames(self, offset):
         while len(self._output_queue) > 0:
             frame = self._output_queue.pop(0)
 
             start = offset
-            offset = emit_frame(buff, offset, frame)
+            offset = emit_frame(self._output_buffer, offset, frame)
 
-            self._log_send(_frame_hex(buff[start:offset]), frame)
+            self._log_send(_frame_hex(self._output_buffer[start:offset]), frame)
 
         return offset
 
