@@ -24,8 +24,14 @@ export MICROPYPATH := python
 default: send
 
 .PHONY: send
-send:
+send: send-cpython send-micropython
+
+.PHONY: send-cpython
+send-cpython:
 	python3 -m argon.main send amqp.zone 5672 q0 abc123
+
+.PHONY: send-micropython
+send-micropython:
 	micropython python/argon/main.py send amqp.zone 5672 q0 abc123
 
 .PHONY: big-debug

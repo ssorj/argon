@@ -32,21 +32,21 @@ class _MainConnection(Connection):
         self.sender = _MainSender(self.session, self.address)
 
     def on_start(self):
-        self.send_open()
-        self.session.send_open()
-        self.sender.send_open()
+        self.open()
+        self.session.open()
+        self.sender.open()
 
     def on_close(self):
         raise KeyboardInterrupt() # XXX
 
 class _MainSession(Session):
     def on_close(self):
-        self.connection.send_close()
+        self.connection.close()
 
 class _MainSender(Sender):
     def on_flow(self):
-        self.send_transfer(self.session.connection.message)
-        self.send_close()
+        self.send(self.session.connection.message)
+        self.close()
 
     def on_close(self):
         self.session.send_close()

@@ -26,37 +26,27 @@ class _DebugConnection(Connection):
         super().__init__()
 
         self.session = _DebugSession(self)
+        self.sender = _DebugSender(self.session, "q0")
 
     def on_start(self):
-        self.send_open()
+        self.open()
+        self.session.open()
+        self.sender.open()
         
     def on_open(self):
         print("CONNECTION OPENED")
-
-        self.session.send_open()
 
     def on_close(self):
         print("CONNECTION CLOSED")
         raise KeyboardInterrupt() # XXX
 
 class _DebugSession(Session):
-    def __init__(self, connection):
-        super().__init__(connection)
-
-        self.sender = _DebugSender(self, "q0")
-
     def on_open(self):
         print("SESSION OPENED")
 
-        target = Target()
-        target.address = "q0"
-
-        self.sender.send_open()
-
     def on_close(self):
         print("SESSION CLOSED")
-
-        self.connection.send_close()
+        self.connection.close()
 
 class _DebugSender(Sender):
     def on_open(self):
@@ -73,13 +63,12 @@ class _DebugSender(Sender):
         message.body = [1, 2, 3]
         message.properties["a"] = 1
 
-        self.send_transfer(message)
-        self.send_close()
+        self.send(message)
+        self.close()
 
     def on_close(self):
         print("LINK CLOSED")
-
-        self.session.send_close()
+        self.session.close()
 
 def _main():
     transport = TcpTransport("127.0.0.1", 5672)

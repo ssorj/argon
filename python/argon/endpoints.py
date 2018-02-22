@@ -74,12 +74,12 @@ class Connection:
         session = self.sessions_by_channel[frame.channel]
 
         if descriptor == BEGIN_DESCRIPTOR:
-            session._receive_open(frame)
+            session._handle_begin(frame)
             return
 
         if descriptor == ATTACH_DESCRIPTOR:
             link = session.links_by_name[frame.performative.name]
-            link._receive_open(frame)
+            link._handle_attach(frame)
             return
 
         if descriptor == FLOW_DESCRIPTOR:
@@ -87,7 +87,7 @@ class Connection:
                 return # XXX Handle flow for sessions
 
             link = session.links_by_handle[frame.performative.handle]
-            link._receive_flow(frame)
+            link._handle_flow(frame)
             return
 
         if descriptor == TRANSFER_DESCRIPTOR:
@@ -98,11 +98,11 @@ class Connection:
 
         if descriptor == DETACH_DESCRIPTOR:
             link = session.links_by_handle[frame.performative.handle]
-            link._receive_close(frame)
+            link._handle_detach(frame)
             return
 
         if descriptor == END_DESCRIPTOR:
-            session._receive_close(frame)
+            session._handle_end(frame)
             return
 
         raise Exception()
@@ -113,13 +113,13 @@ class Connection:
     def on_start(self):
         pass
 
-    def send_open(self):
+    def open(self):
         self.transport.emit_amqp_frame(0, self._open)
 
     def on_open(self):
         pass
 
-    def send_close(self, error=None):
+    def close(self, error=None):
         performative = ClosePerformative()
         self.transport.emit_amqp_frame(0, performative)
 
@@ -141,20 +141,17 @@ class _Endpoint:
     def transport(self):
         return self.connection.transport
 
-    def send_open(self):
-        raise NotImplementedError()
-
-    def _receive_open(self, frame):
+    def open(self):
         raise NotImplementedError()
 
     def on_open(self):
         pass
 
-    def send_close(self, error=None):
+    def close(self, error=None):
         raise NotImplementedError()
 
-    def _receive_close(self, frame):
-        self.on_close()
+    def on_close(self):
+        pass
 
 class Session(_Endpoint):
     def __init__(self, connection):
@@ -174,16 +171,19 @@ class Session(_Endpoint):
         self.connection.sessions.append(self)
         self.connection.sessions_by_channel[self.channel] = self
 
-    def send_open(self):
+    def open(self):
         self.transport.emit_amqp_frame(self.channel, self._begin)
 
-    def _receive_open(self, frame):
+    def _handle_begin(self, frame):
         self._remote_channel = frame.performative.remote_channel
         self.on_open()
 
-    def send_close(self, error=None):
+    def close(self, error=None):
         performative = EndPerformative()
         self.transport.emit_amqp_frame(self.channel, performative)
+
+    def _handle_end(self, frame):
+        self.on_close()
 
 class _Link(_Endpoint):
     def __init__(self, session, role, name=None):
@@ -210,20 +210,20 @@ class _Link(_Endpoint):
         self.session.links_by_name[self._attach.name] = self
         self.session.links_by_handle[self._attach.handle] = self
 
-    def send_open(self):
+    def open(self):
         self.transport.emit_amqp_frame(self.channel, self._attach)
 
-    def _receive_open(self, frame):
+    def _handle_attach(self, frame):
         self.on_open()
 
-    def _receive_flow(self, frame):
+    def _handle_flow(self, frame):
         self.credit = frame.performative.link_credit
         self.on_flow()
 
     def on_flow(self):
         pass
 
-    def send_transfer(self, message):
+    def send(self, message):
         performative = TransferPerformative()
         performative.handle = self._attach.handle
         performative.delivery_id = UnsignedInt(self._delivery_ids.next())
@@ -234,12 +234,15 @@ class _Link(_Endpoint):
 
         self.transport.emit_amqp_frame(self.channel, performative, None, message)
 
-    def send_close(self, error=None):
+    def close(self, error=None):
         performative = DetachPerformative()
         performative.handle = self._attach.handle
-        performative.closed = True
+        performative.closed = True # XXX Is this the default?
 
         self.transport.emit_amqp_frame(self.channel, performative)
+
+    def _handle_detach(self, frame):
+        self.on_close()
 
 class Sender(_Link):
     def __init__(self, session, address, name=None):
