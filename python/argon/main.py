@@ -49,7 +49,7 @@ class _MainSender(Sender):
         self.close()
 
     def on_close(self):
-        self.session.send_close()
+        self.session.close()
 
 def send(host, port, address, message):
     transport = TcpTransport(host, port)

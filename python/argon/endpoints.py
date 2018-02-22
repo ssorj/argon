@@ -31,6 +31,8 @@ class Connection:
         self._open = OpenPerformative()
         self._open.container_id = container_id
 
+        self._close = ClosePerformative()
+
         self._opened = False
         self._closed = False
 
@@ -120,8 +122,8 @@ class Connection:
         pass
 
     def close(self, error=None):
-        performative = ClosePerformative()
-        self.transport.emit_amqp_frame(0, performative)
+        # self._close.error = ...
+        self.transport.emit_amqp_frame(0, self._close)
 
     def on_close(self):
         pass
@@ -162,9 +164,10 @@ class Session(_Endpoint):
         self._begin.incoming_window = UnsignedInt(0xffffffff)
         self._begin.outgoing_window = UnsignedInt(0xffffffff)
 
+        self._end = EndPerformative()
+
         self._link_handles = _Sequence()
 
-        self.links = list()
         self.links_by_name = dict()
         self.links_by_handle = dict()
 
@@ -179,8 +182,8 @@ class Session(_Endpoint):
         self.on_open()
 
     def close(self, error=None):
-        performative = EndPerformative()
-        self.transport.emit_amqp_frame(self.channel, performative)
+        # self._end.error = ...
+        self.transport.emit_amqp_frame(self.channel, self._end)
 
     def _handle_end(self, frame):
         self.on_close()
@@ -204,9 +207,12 @@ class _Link(_Endpoint):
         self._attach.source = None
         self._attach.target = None
 
+        self._detach = DetachPerformative()
+        self._detach.handle = handle
+        self._detach.closed = True
+
         self._delivery_ids = _Sequence()
 
-        self.session.links.append(self)
         self.session.links_by_name[self._attach.name] = self
         self.session.links_by_handle[self._attach.handle] = self
 
@@ -235,11 +241,8 @@ class _Link(_Endpoint):
         self.transport.emit_amqp_frame(self.channel, performative, None, message)
 
     def close(self, error=None):
-        performative = DetachPerformative()
-        performative.handle = self._attach.handle
-        performative.closed = True # XXX Is this the default?
-
-        self.transport.emit_amqp_frame(self.channel, performative)
+        # self._detach.error = ...
+        self.transport.emit_amqp_frame(self.channel, self._detach)
 
     def _handle_detach(self, frame):
         self.on_close()
