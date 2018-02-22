@@ -19,6 +19,7 @@
 
 export PYTHONPATH := python
 export MICROPYPATH := python
+export ARGON_DEBUG := 1
 
 .PHONY: default
 default: send

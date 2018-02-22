@@ -20,7 +20,7 @@
 import sys as _sys
 
 from argon.common import *
-from argon.common import _micropython, _time, _select, _socket, _struct
+from argon.common import _DEBUG, _micropython, _time, _select, _socket, _struct
 from argon.frames import *
 from argon.frames import _frame_hex, _hex
 
@@ -28,7 +28,7 @@ class SocketTransport:
     def __init__(self, socket, address):
         self.socket = socket
         self.address = address
-        self.debug = True
+        self.debug = _DEBUG
 
         self._input_buffer = Buffer()
         self._output_buffer = Buffer()
