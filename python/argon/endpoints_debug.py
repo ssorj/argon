@@ -34,26 +34,21 @@ class _DebugConnection(Connection):
         self.sender.open()
         
     def on_open(self):
-        print("CONNECTION OPENED")
+        print("E CONNECTION OPENED")
 
     def on_close(self, error=None):
-        print("CONNECTION CLOSED")
-        raise KeyboardInterrupt() # XXX
+        print("E CONNECTION CLOSED")
 
 class _DebugSession(Session):
     def on_open(self):
-        print("SESSION OPENED")
-
-    def on_close(self, error=None):
-        print("SESSION CLOSED")
-        self.connection.close()
+        print("E SESSION OPENED")
 
 class _DebugSender(Sender):
     def on_open(self):
-        print("LINK OPENED")
+        print("E LINK OPENED")
 
     def on_flow(self):
-        print("LINK FLOW")
+        print("E LINK FLOW")
 
         from argon.message import Message, emit_message
 
@@ -64,11 +59,8 @@ class _DebugSender(Sender):
         message.properties["a"] = 1
 
         self.send(message)
-        self.close()
-
-    def on_close(self, error=None):
-        print("LINK CLOSED")
-        self.session.close()
+        self.connection.close()
+        self.transport.stop()
 
 def _main():
     transport = TcpTransport("127.0.0.1", 5672)
