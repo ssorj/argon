@@ -19,8 +19,7 @@
 
 import sys as _sys
 
-from argon.endpoints import *
-from argon.message import *
+from argon import *
 
 class _MainConnection(Connection):
     def __init__(self, address, message):
