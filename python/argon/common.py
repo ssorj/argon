@@ -22,6 +22,7 @@ import sys as _sys
 _micropython = _sys.implementation.name == "micropython"
 
 if _micropython:
+    import gc as _gc
     import uos as _os
     import urandom as _random
     import uselect as _select
@@ -29,6 +30,7 @@ if _micropython:
     import ustruct as _struct
     import utime as _time
 else:
+    _gc = None
     import os as _os
     import random as _random
     import select as _select
@@ -36,7 +38,10 @@ else:
     import struct as _struct
     import time as _time
 
-_DEBUG = _os.getenv("ARGON_DEBUG") is not None
+try:
+    _DEBUG = _os.getenv("ARGON_DEBUG") is not None
+except AttributeError:
+    _DEBUG = False
 
 class Buffer:
     def __init__(self):
