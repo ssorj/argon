@@ -34,12 +34,12 @@ class SocketTransport:
         self._output_buffer = Buffer()
         self._emit_offset = 0
 
-    def _log_send(self, octets, frame, message=None):
+    def _log_output(self, octets, frame, message=None):
         if self.debug:
             print("S", octets)
             print(" ", frame, message)
 
-    def _log_receive(self, octets, frame):
+    def _log_input(self, octets, frame):
         if self.debug:
             print("R", octets)
             print(" ", frame)
@@ -49,8 +49,6 @@ class SocketTransport:
         parse_offset = 0
         write_offset = 0
 
-        self.on_start()
-
         try:
             self.socket.connect(self.address)
 
@@ -58,12 +56,18 @@ class SocketTransport:
 
             self.socket.setblocking(False)
 
+            self.on_start()
+
             poller = _select.poll()
             poller.register(self.socket)
 
             while True:
                 events = poller.poll(1000)
                 flags = events[0][1]
+
+                #_time.sleep(0.2)
+                #print("tick", "r", read_offset, "p", parse_offset, "e", self._emit_offset, "w", write_offset)
+                #print("    ", flags & _select.POLLIN, flags & _select.POLLOUT)
 
                 if flags & _select.POLLERR:
                     raise Exception("POLLERR!")
@@ -86,10 +90,10 @@ class SocketTransport:
                 if self._emit_offset == write_offset:
                     self._emit_offset = 0
                     write_offset = 0
+
+            self.on_stop()
         finally:
             self.socket.close()
-
-        self.on_stop()
 
     def on_start(self):
         pass
@@ -101,13 +105,12 @@ class SocketTransport:
         pass
 
     def emit_amqp_frame(self, channel, performative, payload=None, message=None):
-        offset = self._emit_offset
-        start = offset
-        offset = emit_amqp_frame(self._output_buffer, offset, channel, performative, payload, message)
+        start = self._emit_offset
+        offset = emit_amqp_frame(self._output_buffer, start, channel, performative, payload, message)
 
         if self.debug:
             frame = AmqpFrame(channel, performative, payload)
-            self._log_send(_frame_hex(self._output_buffer[start:offset]), frame, message)
+            self._log_output(_frame_hex(self._output_buffer[start:offset]), frame, message)
 
         self._emit_offset = offset
 
@@ -165,7 +168,7 @@ class SocketTransport:
 
             offset, frame = parse_frame_body(self._input_buffer, offset, end, channel)
 
-            self._log_receive(_frame_hex(self._input_buffer[start:offset]), frame)
+            self._log_input(_frame_hex(self._input_buffer[start:offset]), frame)
 
             self.on_frame(frame)
 

@@ -27,6 +27,9 @@ class _DebugConnection(Connection):
 
         self.session = _DebugSession(self)
 
+    def on_start(self):
+        self.send_open()
+        
     def on_open(self):
         print("CONNECTION OPENED")
 

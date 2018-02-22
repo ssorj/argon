@@ -50,7 +50,7 @@ class Connection:
         self.transport.on_stop = self.on_transport_stop
 
     def on_transport_start(self):
-        self.send_open()
+        self.on_start()
 
     def on_transport_frame(self, frame):
         assert isinstance(frame, AmqpFrame)
@@ -110,6 +110,9 @@ class Connection:
     def on_transport_stop(self, error):
         raise Exception(error) # XXX
 
+    def on_start(self):
+        pass
+
     def send_open(self):
         self.transport.emit_amqp_frame(0, self._open)
 
@@ -121,6 +124,9 @@ class Connection:
         self.transport.emit_amqp_frame(0, performative)
 
     def on_close(self):
+        pass
+
+    def on_stop(self):
         pass
 
 class _Endpoint:

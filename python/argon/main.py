@@ -30,22 +30,17 @@ class _MainConnection(Connection):
         self.message = message
 
         self.session = _MainSession(self)
+        self.sender = _MainSender(self.session, self.address)
 
-    def on_open(self):
+    def on_start(self):
+        self.send_open()
         self.session.send_open()
+        self.sender.send_open()
 
     def on_close(self):
         raise KeyboardInterrupt() # XXX
 
 class _MainSession(Session):
-    def __init__(self, connection):
-        super().__init__(connection)
-
-        self.sender = _MainSender(self, self.connection.address)
-
-    def on_open(self):
-        self.sender.send_open()
-
     def on_close(self):
         self.connection.send_close()
 
