@@ -83,7 +83,7 @@ class Buffer:
         if len(self._octets) < size:
             new_size = max(size, 2 * len(self._octets))
 
-            self._octets = self._octets + bytearray([0] * (new_size - len(self._octets)))
+            self._octets = self._octets + bytearray(new_size - len(self._octets))
             self._view = memoryview(self._octets)
 
     if _micropython:

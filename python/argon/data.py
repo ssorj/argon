@@ -692,7 +692,7 @@ def _get_data_type_for_python_type(python_type):
     if issubclass(python_type, str):
         return _string_type
 
-    if issubclass(python_type, list):
+    if issubclass(python_type, (list, tuple)):
         return _list_type
 
     if issubclass(python_type, dict):
