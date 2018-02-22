@@ -65,11 +65,16 @@ class SocketTransport:
 
             while not self._stopping:
                 events = poller.poll(1000)
+
+                if len(events) == 0:
+                    continue
+
                 flags = events[0][1]
 
-                #_time.sleep(0.2)
-                #print("tick", "r", read_offset, "p", parse_offset, "e", self._emit_offset, "w", write_offset)
-                #print("    ", flags & _select.POLLIN, flags & _select.POLLOUT)
+                if self.debug:
+                    print("T buff", "input", len(self._input_buffer), "output", len(self._output_buffer))
+                    print("  offs", "read", read_offset, "parse", parse_offset, "emit", self._emit_offset, "write", write_offset)
+                    print("  poll", (flags & _select.POLLIN and "IN " or "---"), (flags & _select.POLLOUT and "OUT" or "---"))
 
                 if flags & _select.POLLERR:
                     raise Exception("POLLERR!")
@@ -77,21 +82,26 @@ class SocketTransport:
                 if flags & _select.POLLHUP:
                     raise Exception("POLLHUP!")
 
+                if flags & _select.POLLOUT:
+                    write_offset = self._write_socket(write_offset, self._emit_offset)
+
                 if flags & _select.POLLIN:
                     read_offset = self._read_socket(read_offset)
 
                 parse_offset = self._parse_frames(parse_offset, read_offset)
 
-                if write_offset < self._emit_offset and flags & _select.POLLOUT:
-                    write_offset = self._write_socket(write_offset, self._emit_offset)
-
                 if parse_offset == read_offset:
                     read_offset = 0
                     parse_offset = 0
 
-                if self._emit_offset == write_offset:
-                    self._emit_offset = 0
-                    write_offset = 0
+                if write_offset < self._emit_offset:
+                    poller.modify(self.socket, _select.POLLIN | _select.POLLOUT)
+                else:
+                    if self._emit_offset == write_offset:
+                        self._emit_offset = 0
+                        write_offset = 0
+
+                    poller.modify(self.socket, _select.POLLIN)
 
                 if _micropython:
                     _gc.collect()

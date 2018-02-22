@@ -45,7 +45,7 @@ except AttributeError:
 
 class Buffer:
     def __init__(self):
-        self._octets = bytearray(64)
+        self._octets = bytearray(256)
         self._view = memoryview(self._octets)
 
     def skip(self, offset, size):
@@ -83,7 +83,7 @@ class Buffer:
         if len(self._octets) < size:
             new_size = max(size, 2 * len(self._octets))
 
-            self._octets = self._octets + bytearray([0] * new_size)
+            self._octets = self._octets + bytearray([0] * (new_size - len(self._octets)))
             self._view = memoryview(self._octets)
 
     if _micropython:

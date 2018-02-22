@@ -41,7 +41,8 @@ class _MainConnection(Connection):
 
 class _MainSender(Sender):
     def on_flow(self):
-        self.send(self.session.connection.message)
+        for i in range(10):
+            self.send(self.session.connection.message)
         self.connection.close()
 
 def send(host, port, address, message):

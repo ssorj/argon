@@ -25,7 +25,7 @@ class _DebugConnection(Connection):
     def __init__(self):
         super().__init__()
 
-        self.session = _DebugSession(self)
+        self.session = Session(self)
         self.sender = _DebugSender(self.session, "q0")
 
     def on_start(self):
@@ -33,23 +33,8 @@ class _DebugConnection(Connection):
         self.session.open()
         self.sender.open()
         
-    def on_open(self):
-        print("E CONNECTION OPENED")
-
-    def on_close(self, error=None):
-        print("E CONNECTION CLOSED")
-
-class _DebugSession(Session):
-    def on_open(self):
-        print("E SESSION OPENED")
-
 class _DebugSender(Sender):
-    def on_open(self):
-        print("E LINK OPENED")
-
     def on_flow(self):
-        print("E LINK FLOW")
-
         from argon.message import Message, emit_message
 
         message = Message()
