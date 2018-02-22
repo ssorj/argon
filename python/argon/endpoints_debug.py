@@ -36,7 +36,7 @@ class _DebugConnection(Connection):
     def on_open(self):
         print("CONNECTION OPENED")
 
-    def on_close(self):
+    def on_close(self, error=None):
         print("CONNECTION CLOSED")
         raise KeyboardInterrupt() # XXX
 
@@ -44,7 +44,7 @@ class _DebugSession(Session):
     def on_open(self):
         print("SESSION OPENED")
 
-    def on_close(self):
+    def on_close(self, error=None):
         print("SESSION CLOSED")
         self.connection.close()
 
@@ -66,7 +66,7 @@ class _DebugSender(Sender):
         self.send(message)
         self.close()
 
-    def on_close(self):
+    def on_close(self, error=None):
         print("LINK CLOSED")
         self.session.close()
 

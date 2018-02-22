@@ -47,14 +47,14 @@ class Connection:
 
     def bind(self, transport):
         self.transport = transport
-        self.transport.on_start = self.on_transport_start
-        self.transport.on_frame = self.on_transport_frame
-        self.transport.on_stop = self.on_transport_stop
+        self.transport.on_start = self._on_transport_start
+        self.transport.on_frame = self._on_transport_frame
+        self.transport.on_stop = self._on_transport_stop
 
-    def on_transport_start(self):
+    def _on_transport_start(self):
         self.on_start()
 
-    def on_transport_frame(self, frame):
+    def _on_transport_frame(self, frame):
         assert isinstance(frame, AmqpFrame)
 
         descriptor = frame.performative._descriptor
@@ -70,7 +70,7 @@ class Connection:
             assert self._opened is True and self._closed is False
 
             self._closed = True
-            self.on_close()
+            self.on_close(None) # XXX Error
             return
 
         session = self.sessions_by_channel[frame.channel]
@@ -109,8 +109,8 @@ class Connection:
 
         raise Exception()
 
-    def on_transport_stop(self, error):
-        raise Exception(error) # XXX
+    def _on_transport_stop(self, error=None):
+        self.on_stop(error)
 
     def on_start(self):
         pass
@@ -125,10 +125,10 @@ class Connection:
         # self._close.error = ...
         self.transport.emit_amqp_frame(0, self._close)
 
-    def on_close(self):
+    def on_close(self, error=None):
         pass
 
-    def on_stop(self):
+    def on_stop(self, error=None):
         pass
 
 class _Endpoint:
@@ -152,7 +152,7 @@ class _Endpoint:
     def close(self, error=None):
         raise NotImplementedError()
 
-    def on_close(self):
+    def on_close(self, error=None):
         pass
 
 class Session(_Endpoint):
@@ -186,7 +186,7 @@ class Session(_Endpoint):
         self.transport.emit_amqp_frame(self.channel, self._end)
 
     def _handle_end(self, frame):
-        self.on_close()
+        self.on_close(None) # XXX Error
 
 class _Link(_Endpoint):
     def __init__(self, session, role, name=None):
@@ -245,7 +245,7 @@ class _Link(_Endpoint):
         self.transport.emit_amqp_frame(self.channel, self._detach)
 
     def _handle_detach(self, frame):
-        self.on_close()
+        self.on_close(None) # XXX Error
 
 class Sender(_Link):
     def __init__(self, session, address, name=None):

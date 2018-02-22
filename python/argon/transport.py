@@ -34,6 +34,8 @@ class SocketTransport:
         self._output_buffer = Buffer()
         self._emit_offset = 0
 
+        self._stopping = False
+
     def _log_output(self, octets, frame, message=None):
         if self.debug:
             print("S", octets)
@@ -61,7 +63,7 @@ class SocketTransport:
             poller = _select.poll()
             poller.register(self.socket)
 
-            while True:
+            while not self._stopping:
                 events = poller.poll(1000)
                 flags = events[0][1]
 
@@ -91,9 +93,13 @@ class SocketTransport:
                     self._emit_offset = 0
                     write_offset = 0
 
-            self.on_stop()
+            self.on_stop(None) # XXX Error
         finally:
             self.socket.close()
+
+    def stop(self):
+        assert self._stopping is False
+        self._stopping = True
 
     def on_start(self):
         pass

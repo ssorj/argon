@@ -28,7 +28,7 @@ class _MainConnection(Connection):
         self.address = address
         self.message = message
 
-        self.session = _MainSession(self)
+        self.session = Session(self)
         self.sender = _MainSender(self.session, self.address)
 
     def on_start(self):
@@ -36,20 +36,13 @@ class _MainConnection(Connection):
         self.session.open()
         self.sender.open()
 
-    def on_close(self):
-        raise KeyboardInterrupt() # XXX
-
-class _MainSession(Session):
-    def on_close(self):
-        self.connection.close()
+    def on_close(self, error=None):
+        self.transport.stop()
 
 class _MainSender(Sender):
     def on_flow(self):
         self.send(self.session.connection.message)
-        self.close()
-
-    def on_close(self):
-        self.session.close()
+        self.connection.close()
 
 def send(host, port, address, message):
     transport = TcpTransport(host, port)
