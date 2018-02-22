@@ -17,13 +17,14 @@
 # under the License.
 #
 
-from argon.common import _hex, _uuid_bytes
+from argon.common import _DEBUG, _hex, _uuid_bytes
 from argon.frames import _field
 from argon.transport import *
 
 class Connection:
     def __init__(self, container_id=None):
         self.transport = None
+        self.debug = _DEBUG
 
         if container_id is None:
             container_id = _hex(_uuid_bytes())
@@ -51,7 +52,16 @@ class Connection:
         self.transport.on_frame = self._on_transport_frame
         self.transport.on_stop = self._on_transport_stop
 
+    def _log_operation(self, object_name, operation_name, *args):
+        if self.debug:
+            print("O", "{}.{}".format(object_name, operation_name))
+
+    def _log_event(self, object_name, event_name, *args):
+        if self.debug:
+            print("E", "{}.{}".format(object_name, event_name))
+
     def _on_transport_start(self):
+        self._log_event("transport", "start")
         self.on_start()
 
     def _on_transport_frame(self, frame):
@@ -60,6 +70,8 @@ class Connection:
         descriptor = frame.performative._descriptor
 
         if descriptor == OPEN_DESCRIPTOR:
+            self._log_event("connection", "open")
+
             assert self._opened is False and self._closed is False
 
             self._opened = True
@@ -67,6 +79,8 @@ class Connection:
             return
 
         if descriptor == CLOSE_DESCRIPTOR:
+            self._log_event("connection", "close")
+
             assert self._opened is True and self._closed is False
 
             self._closed = True
@@ -116,12 +130,14 @@ class Connection:
         pass
 
     def open(self):
+        self._log_operation("connection", "open")
         self.transport.emit_amqp_frame(0, self._open)
 
     def on_open(self):
         pass
 
     def close(self, error=None):
+        self._log_operation("connection", "close")
         # self._close.error = ...
         self.transport.emit_amqp_frame(0, self._close)
 
@@ -175,17 +191,21 @@ class Session(_Endpoint):
         self.connection.sessions_by_channel[self.channel] = self
 
     def open(self):
+        self.connection._log_operation("session", "open")
         self.transport.emit_amqp_frame(self.channel, self._begin)
 
     def _handle_begin(self, frame):
+        self.connection._log_event("session", "open")
         self._remote_channel = frame.performative.remote_channel
         self.on_open()
 
     def close(self, error=None):
+        self.connection._log_operation("session", "close")
         # self._end.error = ...
         self.transport.emit_amqp_frame(self.channel, self._end)
 
     def _handle_end(self, frame):
+        self.connection._log_event("session", "close")
         self.on_close(None) # XXX Error
 
 class _Link(_Endpoint):
@@ -217,12 +237,15 @@ class _Link(_Endpoint):
         self.session.links_by_handle[self._attach.handle] = self
 
     def open(self):
+        self.connection._log_operation("link", "open")
         self.transport.emit_amqp_frame(self.channel, self._attach)
 
     def _handle_attach(self, frame):
+        self.connection._log_event("link", "open")
         self.on_open()
 
     def _handle_flow(self, frame):
+        self.connection._log_event("link", "flow")
         self.credit = frame.performative.link_credit
         self.on_flow()
 
@@ -230,6 +253,8 @@ class _Link(_Endpoint):
         pass
 
     def send(self, message):
+        self.connection._log_operation("link", "send")
+
         performative = TransferPerformative()
         performative.handle = self._attach.handle
         performative.delivery_id = UnsignedInt(self._delivery_ids.next())
@@ -241,10 +266,12 @@ class _Link(_Endpoint):
         self.transport.emit_amqp_frame(self.channel, performative, None, message)
 
     def close(self, error=None):
+        self.connection._log_operation("link", "close")
         # self._detach.error = ...
         self.transport.emit_amqp_frame(self.channel, self._detach)
 
     def _handle_detach(self, frame):
+        self.connection._log_event("link", "detach")
         self.on_close(None) # XXX Error
 
 class Sender(_Link):
