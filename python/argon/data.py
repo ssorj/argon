@@ -202,7 +202,7 @@ class _UnsignedShortType(_WrappedFixedWidthType):
 
     if _micropython:
         def emit_value(self, buff, offset, value):
-            value = int.from_bytes(value.to_bytes(1, "big"), "big")
+            value = int.from_bytes(value.to_bytes(2, "big"), "big")
             return self.emit_value_long(buff, offset, value)
 
 class _UnsignedIntType(_WrappedFixedWidthType):
@@ -211,7 +211,7 @@ class _UnsignedIntType(_WrappedFixedWidthType):
 
     def emit_value(self, buff, offset, value):
         if _micropython:
-            value = int.from_bytes(value.to_bytes(1, "big"), "big")
+            value = int.from_bytes(value.to_bytes(4, "big"), "big")
 
         if value == 0: return offset, 0x43
         if value < 256: return buff.pack(offset, 1, "!B", value), 0x52
@@ -230,7 +230,7 @@ class _UnsignedLongType(_WrappedFixedWidthType):
 
     def emit_value(self, buff, offset, value):
         if _micropython:
-            value = int.from_bytes(value.to_bytes(1, "big"), "big")
+            value = int.from_bytes(value.to_bytes(8, "big"), "big")
 
         if value == 0: return offset, 0x44
         if value < 256: return buff.pack(offset, 1, "!B", value), 0x53
