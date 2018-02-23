@@ -20,7 +20,7 @@
 import sys as _sys
 
 from argon.common import *
-from argon.common import _DEBUG, _gc, _micropython, _time, _select, _socket, _struct
+from argon.common import _DEBUG, _micropython, _time, _select, _socket, _struct
 from argon.frames import *
 from argon.frames import _frame_hex, _hex
 
@@ -102,9 +102,6 @@ class SocketTransport:
                         write_offset = 0
 
                     poller.modify(self.socket, _select.POLLIN)
-
-                if _micropython:
-                    _gc.collect()
 
             self.on_stop(None) # XXX Error
         finally:
