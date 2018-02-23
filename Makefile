@@ -25,7 +25,7 @@ export ARGON_DEBUG := 1
 default: send
 
 .PHONY: send
-send: send-cpython
+send: send-micropython
 
 .PHONY: send-cpython
 send-cpython:

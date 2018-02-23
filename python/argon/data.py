@@ -18,7 +18,7 @@
 #
 
 from argon.common import *
-from argon.common import _hex, _struct
+from argon.common import _hex, _micropython, _struct
 
 class UnsignedByte(int): pass
 class UnsignedShort(int): pass
@@ -61,7 +61,7 @@ class DescribedValue:
     def __eq__(self, other):
         if other is None:
             return False
-        
+
         return (self._descriptor, self._value) == (other._descriptor, other._value)
 
 def _field(index, mandatory=False, default=None):
@@ -191,15 +191,28 @@ class _UnsignedByteType(_WrappedFixedWidthType):
     def __init__(self):
         super().__init__(UnsignedByte, 0x50, "!B")
 
+    if _micropython:
+        def emit_value(self, buff, offset, value):
+            value = int.from_bytes(value.to_bytes(1, "big"), "big")
+            return self.emit_value_long(buff, offset, value)
+
 class _UnsignedShortType(_WrappedFixedWidthType):
     def __init__(self):
         super().__init__(UnsignedShort, 0x60, "!H")
+
+    if _micropython:
+        def emit_value(self, buff, offset, value):
+            value = int.from_bytes(value.to_bytes(1, "big"), "big")
+            return self.emit_value_long(buff, offset, value)
 
 class _UnsignedIntType(_WrappedFixedWidthType):
     def __init__(self):
         super().__init__(UnsignedInt, 0x70, "!I")
 
     def emit_value(self, buff, offset, value):
+        if _micropython:
+            value = int.from_bytes(value.to_bytes(1, "big"), "big")
+
         if value == 0: return offset, 0x43
         if value < 256: return buff.pack(offset, 1, "!B", value), 0x52
 
@@ -216,6 +229,9 @@ class _UnsignedLongType(_WrappedFixedWidthType):
         super().__init__(UnsignedLong, 0x80, "!Q")
 
     def emit_value(self, buff, offset, value):
+        if _micropython:
+            value = int.from_bytes(value.to_bytes(1, "big"), "big")
+
         if value == 0: return offset, 0x44
         if value < 256: return buff.pack(offset, 1, "!B", value), 0x53
 

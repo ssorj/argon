@@ -86,35 +86,12 @@ class Buffer:
             self._octets = self._octets + bytearray(new_size - len(self._octets))
             self._view = memoryview(self._octets)
 
-    if _micropython:
-        # XXX Hideous bad hack
-        def pack(self, offset, size, format_string, *values):
-            self.ensure(offset + size)
+    def pack(self, offset, size, format_string, *values):
+        self.ensure(offset + size)
 
-            from argon.data import UnsignedByte, UnsignedShort, UnsignedInt, UnsignedLong
+        _struct.pack_into(format_string, self._octets, offset, *values)
 
-            values = list(values)
-
-            for i, value in enumerate(values):
-                if isinstance(value, UnsignedByte):
-                    values[i] = int.from_bytes(value.to_bytes(1, "big"), "big")
-                elif isinstance(value, UnsignedShort):
-                    values[i] = int.from_bytes(value.to_bytes(2, "big"), "big")
-                elif isinstance(value, UnsignedInt):
-                    values[i] = int.from_bytes(value.to_bytes(4, "big"), "big")
-                elif isinstance(value, UnsignedLong):
-                    values[i] = int.from_bytes(value.to_bytes(8, "big"), "big")
-
-            _struct.pack_into(format_string, self._octets, offset, *values)
-
-            return offset + size
-    else:
-        def pack(self, offset, size, format_string, *values):
-            self.ensure(offset + size)
-
-            _struct.pack_into(format_string, self._octets, offset, *values)
-
-            return offset + size
+        return offset + size
 
 def _uuid_bytes():
     _random.seed(round(_time.time() * 1000))
