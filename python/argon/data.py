@@ -435,6 +435,11 @@ class _CompoundType(_CollectionType):
         super().__init__(python_type, short_format_code, long_format_code)
 
     def emit_value(self, buff, offset, value):
+        count = self.get_count(value)
+
+        if count >= 256:
+            return self.emit_value_long(buff, offset, value)
+
         offset, size_offset = buff.skip(offset, 1)
         offset, count_offset = buff.skip(offset, 1)
 
@@ -442,9 +447,8 @@ class _CompoundType(_CollectionType):
         offset = self.encode_into(buff, offset, value)
 
         size = offset - count_offset
-        count = self.get_count(value)
 
-        if size >= 256 or count >= 256:
+        if size >= 256:
             encoded_value = bytes(buff[value_offset:offset])
             return self.emit_value_long(buff, size_offset, value, encoded_value)
 
@@ -565,6 +569,11 @@ class _ArrayType(_CollectionType):
         return offset
 
     def emit_value(self, buff, offset, value):
+        count = len(value.elements)
+
+        if count >= 256:
+            return self.emit_value_long(buff, offset, value)
+
         offset, size_offset = buff.skip(offset, 1)
         offset, count_offset = buff.skip(offset, 1)
 
@@ -574,9 +583,8 @@ class _ArrayType(_CollectionType):
         offset = self.encode_into(buff, offset, value)
 
         size = offset - count_offset
-        count = len(value.elements)
 
-        if size >= 256 or count >= 256:
+        if size >= 256:
             encoded_value = bytes(buff[value_offset:offset])
             return self.emit_value_long(buff, size_offset, value, encoded_value)
 
