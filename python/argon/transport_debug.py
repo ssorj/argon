@@ -24,27 +24,27 @@ from argon.transport import _hex
 
 class _DebugTransport(TcpTransport):
     def on_start(self):
-        frame = AmqpFrame(0, OpenPerformative())
-        frame.performative.container_id = "abc123"
-        self.enqueue_output(frame)
+        performative = OpenPerformative()
+        performative.container_id = "abc123"
+        self.emit_amqp_frame(0, performative)
 
-        frame = AmqpFrame(0, BeginPerformative())
-        frame.performative.next_outgoing_id = UnsignedInt(0)
-        frame.performative.incoming_window = UnsignedInt(0xffff)
-        frame.performative.outgoing_window = UnsignedInt(0xffff)
-        self.enqueue_output(frame)
+        performative = BeginPerformative()
+        performative.next_outgoing_id = UnsignedInt(0)
+        performative.incoming_window = UnsignedInt(0xffff)
+        performative.outgoing_window = UnsignedInt(0xffff)
+        self.emit_amqp_frame(0, performative)
 
-        frame = AmqpFrame(0, EndPerformative())
-        self.enqueue_output(frame)
+        performative = EndPerformative()
+        self.emit_amqp_frame(0, performative)
 
-        frame = AmqpFrame(0, AttachPerformative())
-        frame.performative.name = "abc"
-        frame.performative.handle = UnsignedInt(0)
-        frame.performative.role = False # sender
-        self.enqueue_output(frame)
+        performative = AttachPerformative()
+        performative.name = "abc"
+        performative.handle = UnsignedInt(0)
+        performative.role = False # sender
+        self.emit_amqp_frame(0, performative)
 
-        frame = AmqpFrame(0, ClosePerformative())
-        self.enqueue_output(frame)
+        performative = ClosePerformative()
+        self.emit_amqp_frame(0, performative)
 
     def on_frame(self, frame):
         pass
